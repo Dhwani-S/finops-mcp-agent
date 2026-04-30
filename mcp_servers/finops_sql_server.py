@@ -357,10 +357,10 @@ def get_table_schema(table_name: str, schema_name: str = "reporting") -> str:
 def schema_available_tables() -> str:
     """List of SQL Server tables the agent can query — schemas, names, and purposes."""
     tables = {
-        "description": "Available SQL Server tables in cost-tracking-db-dev",
+        "description": "Available SQL Server tables",
         "connection": {
-            "server": SQL_SERVER_HOST,
-            "database": SQL_SERVER_DB,
+            "server": "(configured via env)",
+            "database": "(configured via env)",
         },
         "tables": [
             {"schema": "reporting", "table": "azure_recommendations", "purpose": "Azure Advisor recommendations (cost, security, performance)"},

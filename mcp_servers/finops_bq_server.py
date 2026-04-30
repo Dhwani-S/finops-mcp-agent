@@ -34,7 +34,9 @@ from mcp.server.fastmcp import FastMCP
 _project_root = Path(__file__).resolve().parent.parent
 load_dotenv(_project_root / ".env")
 
-PROJECT_ID = os.getenv("GCP_PROJECT_ID", "cie-costmanagement-803717")
+PROJECT_ID = os.getenv("GCP_PROJECT_ID", "")
+if not PROJECT_ID:
+    logger.warning("GCP_PROJECT_ID not set — BQ queries will fail")
 RESOURCES_DIR = _project_root / "resources"
 
 MAX_RESULT_ROWS = 500
@@ -183,7 +185,7 @@ def list_dimension_values(
     - User's term is vague and might match multiple entries
 
     Args:
-        table: Fully qualified BQ table (e.g. cie-costmanagement-803717.gcp.daily_usage_costs).
+        table: Fully qualified BQ table (e.g. <project_id>.gcp.daily_usage_costs).
         column: Column name to look up distinct values for (e.g. cpe_project_name, service_description).
         filter_term: Optional text filter — returns only values containing this term (case-insensitive). Leave empty to list all values.
         limit: Max number of distinct values to return. Default 25.
