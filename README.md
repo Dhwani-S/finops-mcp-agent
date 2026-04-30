@@ -158,8 +158,8 @@ The **frontend** (HTML/JS dashboard + chat) decides how to render agent output â
 | BQ Server | 1 | 8 | 3 | Data retrieval (BigQuery) |
 | SQL Server | 2 | 2 | 1 | Data retrieval (SQL Server) |
 | Analytics Server | 8 | 6 | 2 | Computation, pricing APIs, validation |
-| File Server | 5 | 1 (dynamic) | 2 | Reports & persistence |
-| **Totals** | **16** | **17** | **8** | |
+| File Server | 6 | 1 (dynamic) | 2 | Reports & persistence |
+| **Totals** | **17** | **17** | **8** | |
 
 ---
 

@@ -23,11 +23,22 @@ from mcp.server.fastmcp import FastMCP
 
 mcp = FastMCP("FinOps-File-Server")
 
+MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB
+MAX_CSV_ROWS = 50_000
 SANDBOX = Path(__file__).parent.parent/"reports"
 SANDBOX.mkdir(exist_ok=True)
 
 def _safe_path(relative: str) -> Path:
     """Resolve a relative path inside SANDBOX. Reject anything that escapes."""
+    # Reject absolute-looking paths BEFORE normalizing (detect malicious intent)
+    raw = relative.strip()
+    if raw.startswith("/") or raw.startswith("\\") or (len(raw) >= 2 and raw[1] == ":"):
+        raise ValueError(f"Absolute paths are not allowed: '{relative}'")
+
+    relative = relative.replace("\\", "/").strip("/")  # normalize win paths
+    if not relative or relative == "." or Path(relative).is_absolute():
+        raise ValueError(f"Invalid path: '{relative}'")
+    
     p = (SANDBOX / relative).resolve()
     if SANDBOX.resolve() not in p.parents and p != SANDBOX.resolve():
         raise ValueError(f"Path '{relative}' is outside the sandbox")
@@ -37,6 +48,9 @@ def _safe_path(relative: str) -> Path:
 @mcp.tool()
 def write_file(path: str, content: str) -> str:
     """Save or overwrite a file in the reports sandbox. Atomic write (temp + rename)."""
+    if len(content.encode("utf-8")) > MAX_FILE_SIZE_BYTES:
+        return f"Error: Content exceeds {MAX_FILE_SIZE_BYTES // (1024*1024)} MB limit."
+
     target = _safe_path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     temp = target.with_suffix(target.suffix + ".tmp")
@@ -50,6 +64,9 @@ def append_file(path: str, content: str) -> str:
     target = _safe_path(path)
     if not target.exists():
         return f"Error: {path} does not exist. Use write_file to create it first."
+    
+    # Note to user: append is not atomic. Acceptable for log-style additions;
+    # if audit-trail integrity is required, switch to write_file with full content.
     with open(target, "a", encoding="utf-8") as f:
         f.write(content)
     return f"Appended: {path} ({len(content)} chars)"
@@ -64,7 +81,11 @@ def read_file(path: str) -> str:
 
 @mcp.tool()
 def list_files(subdir: str = "") -> str:
-    """List files in the reports sandbox, optionally within a subdirectory."""
+    """List files and folders in the reports sandbox (non-recursive, one level only).
+    
+    Args:
+        subdir: Optional subdirectory to list within the sandbox. Empty string lists the root.
+    """
     target = _safe_path(subdir) if subdir else SANDBOX
     if not target.is_dir():
         return f"Error: {subdir} is not a valid directory."
@@ -100,13 +121,15 @@ def export_csv(filename: str, json_data: str) -> str:
         return f"Error: Invalid JSON — {e}"
     if not isinstance(rows, list) or not rows:
         return "Error: json_data must be a non-empty JSON array of objects."
+    if len(rows) > MAX_CSV_ROWS:
+        return f"Error: {len(rows)} rows exceeds the {MAX_CSV_ROWS} row limit."
     
     target = _safe_path(filename)
     target.parent.mkdir(parents=True, exist_ok=True)
     
-    headers = list(rows[0].keys())
+    headers = list(dict.fromkeys(k for row in rows for k in row.keys()))
     buf = io.StringIO()
-    writer = csv.DictWriter(buf, fieldnames=headers)
+    writer = csv.DictWriter(buf, fieldnames=headers, restval="", extrasaction="ignore")
     writer.writeheader()
     writer.writerows(rows)
     

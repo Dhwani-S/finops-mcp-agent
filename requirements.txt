@@ -20,3 +20,6 @@ flask-cors>=4.0.0
 
 # --- Config ---
 python-dotenv>=1.0.0
+
+# --- Testing ---
+pytest>=7.0.0
