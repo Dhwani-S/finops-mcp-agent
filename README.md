@@ -63,28 +63,34 @@ An MCP-native, multi-cloud cost intelligence platform. Built as a progressive pr
 
 ### 1. `finops_bq_server.py` — BigQuery Data
 
-Serves multi-cloud cost data from BigQuery. The LLM writes arbitrary SQL guided by schema Resources.
+Serves multi-cloud cost data and GCP recommendations from BigQuery. The LLM writes SQL guided by schema Resources.
 
 | Primitive | Name | Purpose |
 |-----------|------|---------|
-| **Tool** | `run_bq_query(sql)` | Execute read-only BigQuery SQL (SELECT/WITH only, guarded) |
-| **Resource** | `schema://bq/azure/daily_aggregated_costs` | Azure cost table schema + column descriptions |
-| **Resource** | `schema://bq/aws/daily_usage_extended_costs` | AWS cost table schema |
-| **Resource** | `schema://bq/gcp/daily_aggregated_costs` | GCP cost table schema |
-| **Resource** | `schema://bq/azure/recommendation_savings` | Azure recommendations schema |
-| **Resource** | `schema://bq/aws/recommendation_savings` | AWS recommendations schema |
-| **Resource** | `schema://bq/gcp/recommendation_savings` | GCP recommendations schema |
-| **Resource** | `guide://query-patterns` | Common SQL patterns (aggregation, comparison, trends) |
-| **Resource** | `guide://cloud-taxonomy` | Cross-cloud service mapping (EC2↔VM↔Compute Engine) |
+| **Tool** | `run_bq_query(sql)` | Execute read-only BigQuery SQL (SELECT/WITH only, guarded, 500 GB cap, 500 row limit) |
+| **Resource** | `schema://bq/azure/daily_costs` | Azure daily cost table schema |
+| **Resource** | `schema://bq/aws/daily_costs` | AWS daily cost table schema |
+| **Resource** | `schema://bq/gcp/daily_costs` | GCP daily cost table schema |
+| **Resource** | `schema://bq/azure/utilization_metrics` | Azure utilization metrics schema |
+| **Resource** | `schema://bq/azure/recommendation_savings` | Azure recommendation savings tracking |
+| **Resource** | `schema://bq/gcp/recommendations` | GCP recommendations schema (business-mapped) |
+| **Resource** | `schema://bq/gcp/pricing_export` | GCP pricing catalog — list + contract prices per SKU |
+| **Resource** | `guide://query-patterns` | Common SQL patterns (aggregation, comparison, trends, date handling) |
+| **Resource** | `guide://cloud-taxonomy` | Cross-cloud service mapping + table locations (BQ vs SQL Server) |
 | **Prompt** | `cost_breakdown` | "Analyze {cloud} costs grouped by {dimension} for {period}" |
 | **Prompt** | `period_comparison` | "Compare {metric} between {period_a} and {period_b}" |
 | **Prompt** | `anomaly_investigation` | "Investigate the cost anomaly for {service} on {date}" |
 
-**Why separate from SQL Server:**
-- Different credentials (GCP service account vs SQL user/pass)
-- Different failure domains (SQL Server VPN can drop without affecting BQ)
-- Different query languages (BigQuery SQL vs T-SQL)
-- Different timeouts (BQ can be slow at 30s, SQL Server is usually fast)
+**BQ Table inventory (from Cost_Source_Tables spreadsheet):**
+- Azure costs: `cie-costmanagement-803717.azure.daily_usage_costs`
+- AWS costs: `cie-costmanagement-803717.aws.aws_daily_usage_extended_costs`
+- GCP costs: `cie-costmanagement-803717.gcp.daily_usage_costs`
+- Azure utilization: `cie-costmanagement-803717.azure.azure_utilization_metrics`
+- Azure savings: `cie-costmanagement-803717.azure.recommendation_savings`
+- GCP recommendations: `cie-costmanagement-803717.reporting_data.gcp_recommendation`
+- GCP pricing catalog: `cie-costmanagement-803717.published_gcp.gcp_cloud_pricing_export`
+
+**Note:** AWS and Azure recommendations are in SQL Server (`reporting.aws_recommendations`, `reporting.azure_recommendations`), served by the SQL Server MCP server.
 
 ### 2. `finops_sql_server.py` — SQL Server Data
 
@@ -102,21 +108,18 @@ Serves data from on-prem/Azure SQL Server. Dynamic schema discovery since SQL Se
 
 ### 3. `finops_analytics_server.py` — Computation Engine
 
-Handles everything the LLM can't reliably compute: statistics, forecasting, external pricing APIs, result validation.
+Handles everything the LLM can't reliably compute: statistics, forecasting, recommendation scoring, result validation. Pure computation — no database access. Pricing data comes from the cost tables via BQ/SQL servers.
 
 | Primitive | Name | Purpose |
 |-----------|------|---------|
 | **Tool** | `detect_anomalies(data_json, method, sensitivity)` | Z-score/IQR anomaly detection on time-series data |
 | **Tool** | `forecast(data_json, periods_ahead, method)` | Linear regression / exponential smoothing with confidence intervals |
 | **Tool** | `calculate_growth(data_json, period)` | MoM, WoW, QoQ, YoY growth rates with proper calendar alignment |
-| **Tool** | `fetch_cloud_pricing(provider, service, region)` | Hit AWS/Azure/GCP pricing APIs, return normalized data |
-| **Tool** | `compare_pricing(service_type, regions)` | Cross-cloud price comparison for equivalent services |
-| **Tool** | `estimate_cost(provider, service, config, hours)` | Price calculator — "What would 3x m5.xlarge cost for 720 hours?" |
 | **Tool** | `score_recommendations(recommendations_json)` | Deterministic ranking by savings × confidence × effort |
 | **Tool** | `validate_results(data_json, query_context)` | Post-query sanity checks (negative costs, insane growth, null rates) |
 | **Resource** | `taxonomy://cloud-services` | Cross-cloud service mapping with normalized names |
 | **Resource** | `reference://anomaly-thresholds` | Default threshold configs by spend tier (<$1K, $1K-$3K, >$3K) |
-| **Resource** | `reference://pricing-endpoints` | Which APIs/URLs to hit per cloud provider |
+| **Resource** | `reference://pricing-data-guide` | Where actual pricing data lives in our cost tables (columns per cloud) |
 | **Resource** | `elicitation://rules` | Tiered ambiguity rules for every query dimension |
 | **Resource** | `elicitation://cost-columns` | What each cost column means per cloud and when to use which |
 | **Resource** | `elicitation://data-quality` | Known data gaps, null rates by field, freshness SLAs |
@@ -155,11 +158,11 @@ The **frontend** (HTML/JS dashboard + chat) decides how to render agent output �
 
 | Server | Tools | Resources | Prompts | Domain |
 |--------|-------|-----------|---------|--------|
-| BQ Server | 1 | 8 | 3 | Data retrieval (BigQuery) |
+| BQ Server | 1 | 9 | 3 | Data retrieval (BigQuery) |
 | SQL Server | 2 | 2 | 1 | Data retrieval (SQL Server) |
-| Analytics Server | 8 | 6 | 2 | Computation, pricing APIs, validation |
+| Analytics Server | 5 | 6 | 2 | Computation, validation |
 | File Server | 5 | 1 (dynamic) | 2 | Reports & persistence |
-| **Totals** | **16** | **17** | **8** | |
+| **Totals** | **13** | **18** | **8** | |
 
 ---
 

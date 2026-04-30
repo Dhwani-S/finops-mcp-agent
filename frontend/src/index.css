@@ -1,0 +1,122 @@
+html {
+  height: 100%;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --font-sans: 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'DM Sans', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace;
+
+  --bg-deep: #07080d;
+  --bg-primary: #0c0e14;
+  --bg-secondary: #12151e;
+  --bg-card: #161a26;
+  --bg-elevated: #1c2130;
+  --bg-input: #222836;
+  --bg-rail-top: #10131c;
+  --bg-rail-bot: #0a0c12;
+
+  --text-primary: #eef0f5;
+  --text-secondary: #a8b0c4;
+  --text-muted: #6b7589;
+
+  --accent: #3d7cff;
+  --accent-hover: #5b91ff;
+  --accent-bright: #7aa8ff;
+  --accent-2: #22d3c9;
+  --glow-accent: 0 0 24px color-mix(in srgb, var(--accent) 28%, transparent);
+
+  --success: #34d399;
+  --success-bright: #6ee7b7;
+  --warning: #fbbf24;
+  --warning-bright: #fde68a;
+  --error: #f87171;
+
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-strong: rgba(255, 255, 255, 0.11);
+  --border: #2d3548;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 8px 32px rgba(0, 0, 0, 0.45);
+}
+
+body {
+  font-family: var(--font-sans);
+  font-optical-sizing: auto;
+  color: var(--text-primary);
+  line-height: 1.55;
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--bg-deep);
+  background-image:
+    radial-gradient(ellipse 120% 80% at 10% -20%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 50%),
+    radial-gradient(ellipse 90% 60% at 95% 10%, color-mix(in srgb, var(--accent-2) 12%, transparent), transparent 45%),
+    radial-gradient(ellipse 70% 50% at 50% 100%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 55%);
+  background-attachment: fixed;
+}
+
+#root {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+  color: var(--text-primary);
+}
+
+/* ----- Light theme ----- */
+html[data-theme='light'] {
+  --bg-deep: #f0f2f7;
+  --bg-primary: #ffffff;
+  --bg-secondary: #e8ecf4;
+  --bg-card: #ffffff;
+  --bg-elevated: #f4f6fb;
+  --bg-input: #ffffff;
+  --bg-rail-top: #eef1f8;
+  --bg-rail-bot: #e4e9f4;
+
+  --text-primary: #111827;
+  --text-secondary: #4b5563;
+  --text-muted: #6b7280;
+
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-bright: #3b82f6;
+  --accent-2: #0d9488;
+  --glow-accent: 0 2px 16px color-mix(in srgb, var(--accent) 18%, transparent);
+
+  --success: #059669;
+  --success-bright: #10b981;
+  --warning: #d97706;
+  --warning-bright: #f59e0b;
+  --error: #dc2626;
+
+  --border-subtle: rgba(15, 23, 42, 0.08);
+  --border-strong: rgba(15, 23, 42, 0.14);
+  --border: #d1d5db;
+
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 8px 28px rgba(15, 23, 42, 0.1);
+}
+
+html[data-theme='light'] body {
+  background-color: var(--bg-deep);
+  background-image:
+    radial-gradient(ellipse 100% 70% at 0% 0%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 55%),
+    radial-gradient(ellipse 80% 50% at 100% 0%, color-mix(in srgb, var(--accent-2) 10%, transparent), transparent 50%);
+}

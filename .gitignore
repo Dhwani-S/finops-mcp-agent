@@ -26,7 +26,24 @@ Thumbs.db
 reports/*
 !reports/.gitkeep
 
+# Resources — contains internal table schemas, data guides, and org-specific config
+resources/
+
+# Data files — may contain sensitive cost/project data
+*.csv
+*.xlsx
+data_dictionary.json
+
+# Frontend build & deps
+frontend/node_modules/
+frontend/dist/
+
 # Distribution
 dist/
 build/
 *.egg-info/
+
+# Test / cache
+.pytest_cache/
+htmlcov/
+.coverage
