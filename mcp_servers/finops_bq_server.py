@@ -1,0 +1,465 @@
+"""
+FinOps BigQuery Server — MCP server for multi-cloud cost data access.
+
+Serves cost data, utilization metrics, and GCP recommendations from BigQuery.
+All queries are read-only with SQL guardrails, bytes-billed caps, and row limits.
+
+Run:
+    # Dev inspector (test tools/resources/prompts in browser)
+    mcp dev mcp_servers/finops_bq_server.py
+
+    # Stdio mode (how the agent connects)
+    python mcp_servers/finops_bq_server.py
+"""
+
+from __future__ import annotations
+
+import base64
+import decimal
+import json
+import logging
+import os
+import re
+import sys
+import time
+from pathlib import Path
+
+from dotenv import load_dotenv
+from mcp.server.fastmcp import FastMCP
+
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+
+_project_root = Path(__file__).resolve().parent.parent
+load_dotenv(_project_root / ".env")
+
+PROJECT_ID = os.getenv("GCP_PROJECT_ID", "cie-costmanagement-803717")
+RESOURCES_DIR = _project_root / "resources"
+
+MAX_RESULT_ROWS = 500
+MAX_BYTES_BILLED = 500 * 1024 * 1024 * 1024  # 500 GB
+QUERY_TIMEOUT_SECONDS = 30
+
+# DML/DDL keywords that must never appear in a query
+_BLOCKED_KEYWORDS = re.compile(
+    r"\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|MERGE|GRANT|REVOKE|CALL|EXEC)\b",
+    re.IGNORECASE,
+)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    stream=sys.stderr,  # MCP uses stdout for protocol — logs must go to stderr
+)
+logger = logging.getLogger("finops_bq_server")
+
+# ---------------------------------------------------------------------------
+# BigQuery client (lazy — fails gracefully if credentials missing)
+# ---------------------------------------------------------------------------
+
+mcp = FastMCP("FinOps-BigQuery-Server")
+
+bq_client = None
+
+def _init_bq_client():
+    """Initialize BQ client on first use. Returns client or None.
+    
+    Auth priority:
+    1. GCP_DEV_CREDENTIALS_BASE64 env var (base64-encoded service account JSON)
+    2. GOOGLE_APPLICATION_CREDENTIALS env var (file path to key JSON)
+    3. Application Default Credentials (gcloud auth application-default login)
+    """
+    global bq_client
+    if bq_client is not None:
+        return bq_client
+    try:
+        from google.cloud import bigquery
+        from google.oauth2 import service_account
+
+        b64_creds = os.getenv("GCP_DEV_CREDENTIALS_BASE64")
+        creds_file = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+
+        if b64_creds:
+            creds_json = json.loads(base64.b64decode(b64_creds))
+            credentials = service_account.Credentials.from_service_account_info(creds_json)
+            bq_client = bigquery.Client(credentials=credentials, project=PROJECT_ID)
+            logger.info("BQ client initialized from base64 credentials for project: %s", PROJECT_ID)
+        elif creds_file:
+            credentials = service_account.Credentials.from_service_account_file(creds_file)
+            bq_client = bigquery.Client(credentials=credentials, project=PROJECT_ID)
+            logger.info("BQ client initialized from key file for project: %s", PROJECT_ID)
+        else:
+            bq_client = bigquery.Client(project=PROJECT_ID)
+            logger.info("BQ client initialized with ADC for project: %s", PROJECT_ID)
+    except Exception as e:
+        logger.error("Could not initialize BigQuery client: %s", e, exc_info=True)
+        bq_client = None
+    return bq_client
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _load_resource_file(relative_path: str) -> str:
+    """Load a resource file from the resources/ directory."""
+    path = (RESOURCES_DIR / relative_path).resolve()
+    if not path.exists():
+        return f"Error: Resource file not found: {relative_path}"
+    return path.read_text(encoding="utf-8")
+
+
+def _validate_sql(sql: str) -> str | None:
+    """Validate a SQL query. Returns error message or None if valid."""
+    clean = sql.strip()
+
+    # Must start with SELECT or WITH
+    if not re.match(r"^(SELECT|WITH)\s", clean, re.IGNORECASE):
+        return "Only SELECT/WITH statements are permitted."
+
+    # Reject DML/DDL keywords anywhere in query
+    match = _BLOCKED_KEYWORDS.search(clean)
+    if match:
+        return f"Blocked keyword detected: {match.group(0).upper()}"
+
+    # Reject multi-statement (semicolons not at the very end)
+    stripped = clean.rstrip(";").strip()
+    if ";" in stripped:
+        return "Multi-statement queries are not allowed."
+
+    # Must reference our project (fully qualified table names)
+    if PROJECT_ID not in clean:
+        return f"Use fully qualified table names including project: {PROJECT_ID}"
+
+    return None
+
+
+def _serialize_row(row: dict) -> dict:
+    """Convert BQ row values to JSON-serializable types."""
+    out = {}
+    for key, value in row.items():
+        if isinstance(value, decimal.Decimal):
+            out[key] = float(value)
+        elif hasattr(value, "isoformat"):
+            out[key] = value.isoformat()
+        else:
+            out[key] = value
+    return out
+
+
+# Column name validation pattern — alphanumeric + underscore only
+_VALID_COLUMN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+# Allowed tables for dimension lookups (fully qualified)
+_ALLOWED_TABLES = {
+    f"{PROJECT_ID}.gcp.daily_usage_costs",
+    f"{PROJECT_ID}.aws.aws_daily_usage_extended_costs",
+    f"{PROJECT_ID}.azure.daily_usage_costs",
+    f"{PROJECT_ID}.reporting_data.gcp_recommendation",
+}
+
+
+# ---------------------------------------------------------------------------
+# Tool: list_dimension_values
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def list_dimension_values(
+    table: str,
+    column: str,
+    filter_term: str = "",
+    limit: int = 25,
+) -> str:
+    """Look up distinct values for a column in a BigQuery cost table.
+
+    Use this BEFORE writing cost queries to find exact project names, service names,
+    regions, environments, or any other entity values that actually exist in the data.
+    Returns distinct values sorted by frequency (most common first).
+
+    WHEN TO USE:
+    - User mentions a project, service, account, region, owner, or team by name
+    - You need to verify what values exist before filtering
+    - User's term is vague and might match multiple entries
+
+    Args:
+        table: Fully qualified BQ table (e.g. cie-costmanagement-803717.gcp.daily_usage_costs).
+        column: Column name to look up distinct values for (e.g. cpe_project_name, service_description).
+        filter_term: Optional text filter — returns only values containing this term (case-insensitive). Leave empty to list all values.
+        limit: Max number of distinct values to return. Default 25.
+    """
+    client = _init_bq_client()
+    if not client:
+        return "Error: BigQuery client not initialized. Check credentials."
+
+    # Validate table is in our allowed list
+    clean_table = table.strip().strip("`")
+    if clean_table not in _ALLOWED_TABLES:
+        return (
+            f"Error: Table not recognized. Allowed tables: "
+            + ", ".join(sorted(_ALLOWED_TABLES))
+        )
+
+    # Validate column name — strict alphanumeric to prevent injection
+    if not _VALID_COLUMN.match(column):
+        return "Error: Invalid column name. Use only letters, numbers, and underscores."
+
+    # Clamp limit
+    limit = max(1, min(limit, 100))
+
+    try:
+        from google.cloud import bigquery as bq
+
+        # Build parameterized query
+        if filter_term:
+            sql = (
+                f"SELECT `{column}` AS value, COUNT(*) AS row_count "
+                f"FROM `{clean_table}` "
+                f"WHERE LOWER(CAST(`{column}` AS STRING)) LIKE LOWER(@filter) "
+                f"GROUP BY `{column}` "
+                f"ORDER BY row_count DESC "
+                f"LIMIT @lim"
+            )
+            job_config = bq.QueryJobConfig(
+                maximum_bytes_billed=MAX_BYTES_BILLED,
+                query_parameters=[
+                    bq.ScalarQueryParameter("filter", "STRING", f"%{filter_term}%"),
+                    bq.ScalarQueryParameter("lim", "INT64", limit),
+                ],
+            )
+        else:
+            sql = (
+                f"SELECT `{column}` AS value, COUNT(*) AS row_count "
+                f"FROM `{clean_table}` "
+                f"GROUP BY `{column}` "
+                f"ORDER BY row_count DESC "
+                f"LIMIT @lim"
+            )
+            job_config = bq.QueryJobConfig(
+                maximum_bytes_billed=MAX_BYTES_BILLED,
+                query_parameters=[
+                    bq.ScalarQueryParameter("lim", "INT64", limit),
+                ],
+            )
+
+        job = client.query(sql, job_config=job_config)
+        results = job.result(timeout=QUERY_TIMEOUT_SECONDS)
+        rows = [{"value": row["value"], "row_count": row["row_count"]} for row in results]
+
+        if not rows:
+            msg = f"No values found for column '{column}' in {clean_table}"
+            if filter_term:
+                msg += f" matching '{filter_term}'"
+            return msg
+
+        output = {
+            "table": clean_table,
+            "column": column,
+            "filter": filter_term or "(none)",
+            "count": len(rows),
+            "values": rows,
+        }
+        return json.dumps(output, indent=None, default=str)
+
+    except Exception as e:
+        logger.exception("Dimension lookup failed")
+        return f"Error: Dimension lookup failed — {e}"
+
+
+# ---------------------------------------------------------------------------
+# Tool: run_bq_query
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def run_bq_query(sql: str) -> str:
+    """Execute a read-only BigQuery SQL query against FinOps cost data.
+
+    Returns results as JSON (max 500 rows). Only SELECT/WITH statements allowed.
+    Must use fully qualified table names with project ID.
+
+    Args:
+        sql: BigQuery Standard SQL query string.
+    """
+    client = _init_bq_client()
+    if not client:
+        return "Error: BigQuery client not initialized. Check credentials and GCP_PROJECT_ID."
+
+    # Validate
+    error = _validate_sql(sql)
+    if error:
+        logger.warning("SQL validation failed: %s", error)
+        return f"Error: {error}"
+
+    try:
+        from google.cloud import bigquery as bq
+
+        job_config = bq.QueryJobConfig(
+            maximum_bytes_billed=MAX_BYTES_BILLED,
+        )
+
+        start = time.time()
+        job = client.query(sql.strip().rstrip(";"), job_config=job_config)
+        results = job.result(timeout=QUERY_TIMEOUT_SECONDS)
+
+        rows = [_serialize_row(dict(row)) for row in results]
+        elapsed = time.time() - start
+        logger.info("BQ query returned %d rows in %.1fs", len(rows), elapsed)
+
+        if not rows:
+            return "Query executed successfully but returned 0 rows."
+
+        truncated = len(rows) > MAX_RESULT_ROWS
+        output = json.dumps(rows[:MAX_RESULT_ROWS], indent=None)
+        if truncated:
+            output += f"\n[Truncated to {MAX_RESULT_ROWS} of {len(rows)} total rows]"
+        return output
+
+    except Exception as e:
+        logger.exception("BigQuery execution failed")
+        return f"Error: Query failed — {e}"
+
+
+# ---------------------------------------------------------------------------
+# Resources: table schemas (static files)
+# ---------------------------------------------------------------------------
+
+@mcp.resource("schema://bq/azure/daily_costs")
+def schema_azure_daily_costs() -> str:
+    """Azure daily cost table schema — columns, types, cost/date column names."""
+    return _load_resource_file("schemas/bq_azure_daily_costs.json")
+
+
+@mcp.resource("schema://bq/aws/daily_costs")
+def schema_aws_daily_costs() -> str:
+    """AWS daily cost table schema — columns, types, cost/date column names."""
+    return _load_resource_file("schemas/bq_aws_daily_costs.json")
+
+
+@mcp.resource("schema://bq/gcp/daily_costs")
+def schema_gcp_daily_costs() -> str:
+    """GCP daily cost table schema — columns, types, cost/date column names."""
+    return _load_resource_file("schemas/bq_gcp_daily_costs.json")
+
+
+@mcp.resource("schema://bq/azure/utilization_metrics")
+def schema_azure_utilization() -> str:
+    """Azure utilization metrics table schema — for rightsizing analysis."""
+    return _load_resource_file("schemas/bq_azure_utilization_metrics.json")
+
+
+@mcp.resource("schema://bq/azure/recommendation_savings")
+def schema_azure_recommendation_savings() -> str:
+    """Azure recommendation savings tracking table — actioned recommendations and realized savings."""
+    return _load_resource_file("schemas/bq_azure_recommendation_savings.json")
+
+
+@mcp.resource("schema://bq/gcp/recommendations")
+def schema_gcp_recommendations() -> str:
+    """GCP recommendation table schema — enriched with business mappings. In reporting_data dataset."""
+    return _load_resource_file("schemas/bq_gcp_recommendations.json")
+
+
+@mcp.resource("schema://bq/gcp/pricing_export")
+def schema_gcp_pricing_export() -> str:
+    """GCP pricing catalog — list prices AND negotiated/contract prices per SKU. Join to costs via sku_id."""
+    return _load_resource_file("schemas/bq_gcp_pricing_export.json")
+
+
+# ---------------------------------------------------------------------------
+# Resources: guides
+# ---------------------------------------------------------------------------
+
+@mcp.resource("guide://query-patterns")
+def guide_query_patterns() -> str:
+    """Common BigQuery SQL patterns for cost analysis — aggregation, comparison, trends, date handling per cloud."""
+    return _load_resource_file("guides/query_patterns.md")
+
+
+@mcp.resource("guide://cloud-taxonomy")
+def guide_cloud_taxonomy() -> str:
+    """Cross-cloud service mapping (EC2↔VM↔Compute Engine) and table locations (BQ vs SQL Server)."""
+    return _load_resource_file("guides/cloud_taxonomy.json")
+
+
+# ---------------------------------------------------------------------------
+# Prompts
+# ---------------------------------------------------------------------------
+
+@mcp.prompt()
+def cost_breakdown(cloud: str = "all", dimension: str = "service", period: str = "last 30 days") -> str:
+    """Analyze cloud costs grouped by a dimension for a time period.
+
+    Args:
+        cloud: Cloud provider — aws, gcp, azure, or all.
+        dimension: Grouping dimension — service, project, region, environment.
+        period: Time period — e.g. 'last 30 days', 'March 2026', 'Q1 2026'.
+    """
+    return f"""Analyze {cloud} cloud costs grouped by {dimension} for {period}.
+
+Steps:
+1. Read the relevant schema resource(s) to get correct table/column names.
+2. Read guide://query-patterns for SQL patterns.
+3. Write and execute a BigQuery query.
+4. Present results as:
+   - Top 10 items by spend (table format)
+   - Total spend for the period
+   - Daily trend if period > 7 days
+5. Flag any data quality issues (partial periods, nulls in group-by column).
+
+Use the correct cost column per cloud (azure_cost / total_cost / total_cost_after_support)."""
+
+
+@mcp.prompt()
+def period_comparison(cloud: str = "all", metric: str = "total spend", period_a: str = "last month", period_b: str = "this month") -> str:
+    """Compare a cost metric between two time periods.
+
+    Args:
+        cloud: Cloud provider — aws, gcp, azure, or all.
+        metric: What to compare — total spend, service breakdown, project spend.
+        period_a: First period (baseline).
+        period_b: Second period (comparison).
+    """
+    return f"""Compare {metric} between '{period_a}' and '{period_b}' for {cloud} cloud.
+
+Steps:
+1. Read schema resources for correct table/column names.
+2. Write a single query using CTEs for both periods.
+3. For each period show:
+   - Total spend
+   - Top 5 items by spend
+   - Percentage change per item (use SAFE_DIVIDE)
+4. Highlight significant variances (>20% change).
+5. Flag if either period is partial/incomplete."""
+
+
+@mcp.prompt()
+def anomaly_investigation(service: str = "", date: str = "", cloud: str = "all") -> str:
+    """Investigate a cost anomaly for a specific service and date.
+
+    Args:
+        service: Service name showing the anomaly (optional — scan all if empty).
+        date: Date of the anomaly (optional — scan recent 7 days if empty).
+        cloud: Cloud provider — aws, gcp, azure, or all.
+    """
+    service_clause = f"for service '{service}'" if service else "across all services"
+    date_clause = f"on {date}" if date else "over the last 7 days"
+
+    return f"""Investigate the cost anomaly {service_clause} {date_clause} in {cloud} cloud.
+
+Steps:
+1. Query daily spend for the service over a 30-day window centered on the anomaly date.
+2. Calculate the baseline (mean) and standard deviation from the surrounding days.
+3. Report:
+   - Anomaly date spend vs baseline ($ and %)
+   - Z-score (how many standard deviations from mean)
+   - Possible root causes: new resources, usage spike, pricing change, tag changes
+4. Query spend breakdown by sub-dimensions (resource group, SKU, region) for the anomaly date vs baseline.
+5. Recommend next steps: investigate specific resources, set up alerts, contact team owner."""
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
+
+if __name__ == "__main__":
+    mcp.run(transport="stdio")
