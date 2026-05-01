@@ -4,6 +4,40 @@
   gap: 0.45rem;
 }
 
+/* Tools bar — above the input */
+.chat-input-tools {
+  display: flex;
+  gap: 0.4rem;
+  padding-left: 0.15rem;
+}
+
+.chat-tool-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: 16px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.chat-tool-btn:hover {
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  color: var(--text-secondary);
+}
+
+.chat-tool-btn.active {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
 .chat-input {
   display: flex;
   gap: 0.65rem;

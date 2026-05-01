@@ -1,0 +1,70 @@
+.chart-view {
+  margin: 0.75rem 0;
+  padding: 1rem;
+  border-radius: var(--radius-lg, 12px);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+}
+
+.chart-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  margin-bottom: 0.75rem;
+}
+
+.chart-type-toggle {
+  display: flex;
+  gap: 0.35rem;
+  background: var(--bg-surface, var(--bg-input));
+  border-radius: 8px;
+  padding: 3px;
+}
+
+.chart-type-btn {
+  padding: 0.3rem 0.7rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.chart-type-btn:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--text-primary);
+}
+
+.chart-type-btn.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.chart-container {
+  width: 100%;
+  min-height: 300px;
+}
+
+/* Recharts tooltip override */
+.chart-tooltip {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.chart-tooltip-label {
+  font-weight: 600;
+  font-size: 0.82rem;
+  color: var(--text-primary);
+  margin: 0 0 0.25rem;
+}
+
+.chart-tooltip-value {
+  font-size: 0.8rem;
+  margin: 0.1rem 0;
+}

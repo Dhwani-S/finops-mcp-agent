@@ -5,6 +5,8 @@ export default function ChatInput({
   onSend,
   onStop,
   isLoading,
+  chartMode,
+  onChartModeChange,
 }) {
   const [text, setText] = useState('')
   const inputRef = useRef(null)
@@ -30,6 +32,16 @@ export default function ChatInput({
 
   return (
     <div className="chat-input-wrap">
+      <div className="chat-input-tools">
+        <button
+          type="button"
+          className={`chat-tool-btn ${chartMode ? 'active' : ''}`}
+          onClick={() => onChartModeChange?.(!chartMode)}
+          title={chartMode ? 'Charts enabled — responses will include visualizations' : 'Enable charts'}
+        >
+          <span aria-hidden="true">📊</span> Charts
+        </button>
+      </div>
       <form className="chat-input" onSubmit={handleSubmit}>
         <div className="chat-input-field">
           <textarea

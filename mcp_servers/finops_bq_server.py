@@ -167,7 +167,7 @@ _ALLOWED_TABLES = {
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
-def list_dimension_values(
+def bq_list_dimension_values(
     table: str,
     column: str,
     filter_term: str = "",

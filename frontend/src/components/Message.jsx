@@ -1,5 +1,8 @@
+import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import ToolEvent from './ToolEvent'
+import ChartView, { extractChartData } from './ChartView'
 import './Message.css'
 
 /**
@@ -25,8 +28,9 @@ function extractOptions(text) {
   return { prose, options }
 }
 
-export default function Message({ message, onOptionClick, disabled }) {
+export default function Message({ message, onOptionClick, disabled, chartMode }) {
   const { role, content, events, loading } = message
+  const [showChart, setShowChart] = useState(false)
 
   if (role === 'user') {
     return (
@@ -37,6 +41,8 @@ export default function Message({ message, onOptionClick, disabled }) {
   }
 
   const { prose, options } = extractOptions(content)
+  const chartDataList = extractChartData(events)
+  const hasCharts = chartDataList.length > 0 && !loading
 
   return (
     <div className="message message-agent">
@@ -50,6 +56,7 @@ export default function Message({ message, onOptionClick, disabled }) {
       {prose && (
         <div className="message-content">
           <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
             components={{
               code({ node, inline, className, children, ...props }) {
                 if (inline) {
@@ -60,6 +67,16 @@ export default function Message({ message, onOptionClick, disabled }) {
                     <code {...props}>{children}</code>
                   </pre>
                 )
+              },
+              a({ href, children, ...props }) {
+                if (href && href.startsWith('/api/reports/')) {
+                  return (
+                    <a href={href} download className="download-link" {...props}>
+                      {children}
+                    </a>
+                  )
+                }
+                return <a href={href} target="_blank" rel="noopener noreferrer" {...props}>{children}</a>
               }
             }}
           >
@@ -83,6 +100,20 @@ export default function Message({ message, onOptionClick, disabled }) {
           ))}
         </div>
       )}
+      {hasCharts && !chartMode && (
+        <div className="chart-toggle-bar">
+          <button
+            type="button"
+            className={`chart-toggle-btn ${showChart ? 'active' : ''}`}
+            onClick={() => setShowChart((v) => !v)}
+          >
+            <span aria-hidden="true">📊</span> {showChart ? 'Hide Charts' : 'Show Charts'}
+          </button>
+        </div>
+      )}
+      {hasCharts && (chartMode || showChart) && chartDataList.map((cd, i) => (
+        <ChartView key={i} chartData={cd} />
+      ))}
       {loading && !content && (
         <div className="message-loading">
           <span className="dot" /><span className="dot" /><span className="dot" />
