@@ -23,7 +23,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from sse_starlette.sse import EventSourceResponse
 from google.genai import types
 
@@ -278,3 +278,32 @@ async def clear():
         return JSONResponse(status_code=503, content={"error": "Agent not ready"})
     _agent.clear_history()
     return {"status": "cleared"}
+
+
+# ---------------------------------------------------------------------------
+# File download — serves exported reports from the sandbox
+# ---------------------------------------------------------------------------
+
+_REPORTS_DIR = _project_root / "reports"
+
+_SAFE_FILENAME_RE = __import__("re").compile(r"^[\w\-./]+$")
+
+
+@app.get("/api/reports/{filename:path}")
+async def download_report(filename: str):
+    """Serve a file from the reports sandbox for browser download."""
+    if not _SAFE_FILENAME_RE.match(filename):
+        return JSONResponse(status_code=400, content={"error": "Invalid filename"})
+
+    filepath = (_REPORTS_DIR / filename).resolve()
+    # Prevent directory traversal
+    if _REPORTS_DIR.resolve() not in filepath.parents and filepath != _REPORTS_DIR.resolve():
+        return JSONResponse(status_code=403, content={"error": "Access denied"})
+    if not filepath.exists() or not filepath.is_file():
+        return JSONResponse(status_code=404, content={"error": "File not found"})
+
+    return FileResponse(
+        path=filepath,
+        filename=filepath.name,
+        media_type="application/octet-stream",
+    )

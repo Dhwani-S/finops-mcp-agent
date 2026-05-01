@@ -158,7 +158,7 @@ _VALID_IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
-def list_dimension_values(
+def sql_list_dimension_values(
     table_name: str,
     column: str,
     filter_term: str = "",
@@ -350,6 +350,83 @@ def get_table_schema(table_name: str, schema_name: str = "reporting") -> str:
 
 
 # ---------------------------------------------------------------------------
+# Tool 4: lookup_identity
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def lookup_identity(
+    search_term: str,
+    search_by: str = "name",
+) -> str:
+    """Look up user-to-project mappings from the identity table.
+
+    Use this when a user asks about a person's projects, costs by person name,
+    or wants to find which GCP/cloud projects belong to a specific user.
+
+    Returns: core_id, user name, and associated project names.
+
+    Args:
+        search_term: The value to search for (person name, core_id, or project name).
+        search_by: What field to search. One of: "name", "core_id", "project".
+                   - "name": search by person name (partial match)
+                   - "core_id": search by exact core_id (e.g. "PWFN83")
+                   - "project": search by project name (partial match)
+    """
+    conn = _get_connection()
+    if not conn:
+        return "Error: SQL Server connection not available. Check credentials."
+
+    allowed_fields = {
+        "name": ("user_name", True),
+        "core_id": ("core_id", False),
+        "project": ("project_name", True),
+    }
+
+    if search_by not in allowed_fields:
+        return f"Error: search_by must be one of: {', '.join(allowed_fields.keys())}"
+
+    column, use_like = allowed_fields[search_by]
+
+    try:
+        cursor = conn.cursor(as_dict=True)
+
+        if use_like:
+            sql = (
+                "SELECT DISTINCT core_id, user_name, project_name "
+                "FROM [cost_management].[anomaly_cost_email_subscribers] "
+                f"WHERE [{column}] LIKE %s "
+                "ORDER BY user_name, project_name"
+            )
+            cursor.execute(sql, (f"%{search_term}%",))
+        else:
+            sql = (
+                "SELECT DISTINCT core_id, user_name, project_name "
+                "FROM [cost_management].[anomaly_cost_email_subscribers] "
+                f"WHERE [{column}] = %s "
+                "ORDER BY user_name, project_name"
+            )
+            cursor.execute(sql, (search_term,))
+
+        rows = cursor.fetchmany(100)
+        serialized = [_serialize_row(row) for row in rows]
+
+        if not serialized:
+            return f"No identity records found for {search_by}='{search_term}'"
+
+        output = {
+            "search_by": search_by,
+            "search_term": search_term,
+            "results_count": len(serialized),
+            "records": serialized,
+        }
+        return json.dumps(output, indent=None, default=str)
+
+    except Exception as e:
+        logger.exception("Identity lookup failed")
+        return f"Error: Identity lookup failed — {e}"
+
+
+# ---------------------------------------------------------------------------
 # Resources
 # ---------------------------------------------------------------------------
 
@@ -375,6 +452,7 @@ def schema_available_tables() -> str:
             {"schema": "reporting", "table": "obs_cpe_env_daily_cost", "purpose": "CPE environment daily costs"},
             {"schema": "reporting", "table": "azure_cpe_env_daily_cost", "purpose": "Azure CPE environment daily costs"},
             {"schema": "reporting", "table": "aws_daily_saving_reservation_costs", "purpose": "AWS daily savings/reservation costs"},
+            {"schema": "cost_management", "table": "anomaly_cost_email_subscribers", "purpose": "Identity mapping: core_id → project_name (user ownership)"},
         ],
         "usage_note": "Use get_table_schema tool to discover columns before writing queries. Schemas change — don't assume column names.",
     }

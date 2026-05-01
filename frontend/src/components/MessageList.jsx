@@ -21,7 +21,7 @@ const STARTER_PROMPTS = [
   },
 ]
 
-export default function MessageList({ messages, onSuggestion, suggestionsDisabled }) {
+export default function MessageList({ messages, onSuggestion, suggestionsDisabled, chartMode }) {
   const endRef = useRef(null)
 
   useEffect(() => {
@@ -74,6 +74,7 @@ export default function MessageList({ messages, onSuggestion, suggestionsDisable
           message={msg}
           onOptionClick={onSuggestion}
           disabled={suggestionsDisabled}
+          chartMode={chartMode}
         />
       ))}
       <div ref={endRef} />
