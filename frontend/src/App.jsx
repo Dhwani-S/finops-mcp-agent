@@ -21,7 +21,7 @@ function App() {
   const [sessions, setSessions] = useState(() => persisted.current.sessions)
   const [activeSessionId, setActiveSessionId] = useState(() => persisted.current.activeSessionId)
   const [isLoading, setIsLoading] = useState(false)
-  const [chartMode, setChartMode] = useState(false)
+  const [outputPrefs, setOutputPrefs] = useState({ charts: false, csv: false, excel: false })
   const [status, setStatus] = useState(null)
   const [statusUpdatedAt, setStatusUpdatedAt] = useState(null)
   const [theme, setTheme] = useState(() => {
@@ -315,7 +315,7 @@ function App() {
               messages={messages}
               onSuggestion={handleSend}
               suggestionsDisabled={isLoading}
-              chartMode={chartMode}
+              chartMode={outputPrefs.charts}
             />
           </main>
           <footer className="app-footer">
@@ -323,8 +323,8 @@ function App() {
               onSend={handleSend}
               onStop={handleStop}
               isLoading={isLoading}
-              chartMode={chartMode}
-              onChartModeChange={setChartMode}
+              outputPrefs={outputPrefs}
+              onOutputPrefsChange={setOutputPrefs}
               messages={messages}
             />
           </footer>

@@ -56,8 +56,8 @@ export default function ChatInput({
   onSend,
   onStop,
   isLoading,
-  chartMode,
-  onChartModeChange,
+  outputPrefs,
+  onOutputPrefsChange,
   messages,
 }) {
   const [text, setText] = useState('')
@@ -135,11 +135,11 @@ export default function ChatInput({
     URL.revokeObjectURL(url)
   }
 
-  const exportCSV = () => {
-    setMenuOpen(false)
+  const exportCSV = (silent) => {
+    if (!silent) setMenuOpen(false)
     const data = getLastAssistantData()
     if (!data?.rows?.length) {
-      alert('No table data in the latest response to export.')
+      if (!silent) alert('No table data in the latest response to export.')
       return
     }
     const headers = Object.keys(data.rows[0])
@@ -157,11 +157,11 @@ export default function ChatInput({
     triggerDownload(new Blob([csvRows.join('\n')], { type: 'text/csv' }), 'finops-export.csv')
   }
 
-  const exportExcel = () => {
-    setMenuOpen(false)
+  const exportExcel = (silent) => {
+    if (!silent) setMenuOpen(false)
     const data = getLastAssistantData()
     if (!data?.rows?.length) {
-      alert('No table data in the latest response to export.')
+      if (!silent) alert('No table data in the latest response to export.')
       return
     }
     // Build simple XLSX-compatible XML (Excel 2003 SpreadsheetML)
@@ -186,8 +186,49 @@ ${xmlRows}
     )
   }
 
+  const togglePref = (key) => {
+    onOutputPrefsChange?.((prev) => ({ ...prev, [key]: !prev[key] }))
+  }
+
+  const hasAnyPref = outputPrefs.charts || outputPrefs.csv || outputPrefs.excel
+
+  /* ── Auto-export when new table data arrives with active prefs ── */
+  const prevMsgCountRef = useRef(messages?.length ?? 0)
+  useEffect(() => {
+    if (!messages) return
+    const prevCount = prevMsgCountRef.current
+    prevMsgCountRef.current = messages.length
+    if (messages.length <= prevCount) return
+    // New message arrived – check if it has table data and prefs are active
+    if (!outputPrefs.csv && !outputPrefs.excel) return
+    const data = getLastAssistantData()
+    if (!data?.rows?.length) return
+    if (outputPrefs.csv) exportCSV(true)
+    if (outputPrefs.excel) exportExcel(true)
+  }, [messages?.length])
+
   return (
     <div className="chat-input-wrap">
+      {/* ── Active preferences chips ── */}
+      {hasAnyPref && (
+        <div className="chat-prefs-bar">
+          {outputPrefs.charts && (
+            <span className="chat-pref-chip" onClick={() => togglePref('charts')}>
+              <Icon name="chart" size={12} /> Charts <span className="chip-x">×</span>
+            </span>
+          )}
+          {outputPrefs.csv && (
+            <span className="chat-pref-chip" onClick={() => togglePref('csv')}>
+              <Icon name="csv" size={12} /> CSV <span className="chip-x">×</span>
+            </span>
+          )}
+          {outputPrefs.excel && (
+            <span className="chat-pref-chip" onClick={() => togglePref('excel')}>
+              <Icon name="excel" size={12} /> Excel <span className="chip-x">×</span>
+            </span>
+          )}
+        </div>
+      )}
       <form className="chat-input" onSubmit={handleSubmit}>
         <div className="chat-input-field">
           <textarea
@@ -206,10 +247,10 @@ ${xmlRows}
         <div className="chat-input-menu-wrap" ref={menuRef}>
           <button
             type="button"
-            className={`chat-input-btn chat-input-btn--menu ${menuOpen ? 'open' : ''} ${chartMode ? 'has-active' : ''}`}
+            className={`chat-input-btn chat-input-btn--menu ${menuOpen ? 'open' : ''} ${hasAnyPref ? 'has-active' : ''}`}
             onClick={() => setMenuOpen((v) => !v)}
-            title="Options"
-            aria-label="Options menu"
+            title="Output preferences"
+            aria-label="Output preferences menu"
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
               <circle cx="8" cy="3" r="1.4" fill="currentColor" />
@@ -221,21 +262,30 @@ ${xmlRows}
             <div className="chat-input-menu">
               <button
                 type="button"
-                className={`chat-menu-item ${chartMode ? 'active' : ''}`}
-                onClick={() => { onChartModeChange?.(!chartMode); setMenuOpen(false) }}
+                className={`chat-menu-item ${outputPrefs.charts ? 'active' : ''}`}
+                onClick={() => togglePref('charts')}
               >
                 <span className="chat-menu-icon"><Icon name="chart" /></span>
                 <span className="chat-menu-label">Charts</span>
-                <span className={`chat-menu-toggle ${chartMode ? 'on' : ''}`} />
+                <span className={`chat-menu-toggle ${outputPrefs.charts ? 'on' : ''}`} />
               </button>
-              <div className="chat-menu-divider" />
-              <button type="button" className="chat-menu-item" onClick={exportCSV}>
+              <button
+                type="button"
+                className={`chat-menu-item ${outputPrefs.csv ? 'active' : ''}`}
+                onClick={() => togglePref('csv')}
+              >
                 <span className="chat-menu-icon"><Icon name="csv" /></span>
-                <span className="chat-menu-label">Export CSV</span>
+                <span className="chat-menu-label">CSV</span>
+                <span className={`chat-menu-toggle ${outputPrefs.csv ? 'on' : ''}`} />
               </button>
-              <button type="button" className="chat-menu-item" onClick={exportExcel}>
+              <button
+                type="button"
+                className={`chat-menu-item ${outputPrefs.excel ? 'active' : ''}`}
+                onClick={() => togglePref('excel')}
+              >
                 <span className="chat-menu-icon"><Icon name="excel" /></span>
-                <span className="chat-menu-label">Export Excel</span>
+                <span className="chat-menu-label">Excel</span>
+                <span className={`chat-menu-toggle ${outputPrefs.excel ? 'on' : ''}`} />
               </button>
             </div>
           )}

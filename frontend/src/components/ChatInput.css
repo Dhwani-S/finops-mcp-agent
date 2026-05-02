@@ -4,6 +4,51 @@
   gap: 0.3rem;
 }
 
+/* ── Active output preferences chips ── */
+.chat-prefs-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding: 0 0.15rem;
+}
+
+.chat-pref-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.22rem 0.55rem 0.22rem 0.4rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  user-select: none;
+}
+
+.chat-pref-chip:hover {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+}
+
+.chat-pref-chip svg {
+  flex-shrink: 0;
+}
+
+.chip-x {
+  font-size: 0.85rem;
+  line-height: 1;
+  margin-left: 0.15rem;
+  opacity: 0.6;
+}
+
+.chat-pref-chip:hover .chip-x {
+  opacity: 1;
+}
+
 .chat-input {
   display: flex;
   gap: 0.45rem;
@@ -141,12 +186,6 @@
 .chat-menu-toggle.on::after {
   transform: translateX(14px);
   background: #fff;
-}
-
-.chat-menu-divider {
-  height: 1px;
-  background: var(--border-subtle);
-  margin: 0.25rem 0.5rem;
 }
 
 .chat-input-field {
