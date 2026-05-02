@@ -174,8 +174,8 @@ def _check_scope_sql(sql: str) -> str | None:
         "1. Organization-wide (confirm explicitly)\n"
         "2. A specific project or subscription\n"
         "3. A specific team or owner\n\n"
-        "Add a WHERE clause with the appropriate scope filter, or get explicit "
-        "user confirmation for org-wide data."
+        "If the user confirms organization-wide, re-call run_sql_query with "
+        "org_wide_confirmed=true and the same SQL."
     )
 
 
@@ -293,7 +293,7 @@ def sql_list_dimension_values(
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
-def run_sql_query(sql: str) -> str:
+def run_sql_query(sql: str, org_wide_confirmed: bool = False) -> str:
     """Execute a read-only T-SQL query against the FinOps SQL Server database.
 
     DATA SCOPE: Azure/AWS recommendations, K8s costs, observability costs, identity mappings.
@@ -312,6 +312,8 @@ def run_sql_query(sql: str) -> str:
 
     Args:
         sql: T-SQL query string.
+        org_wide_confirmed: Set to true ONLY after the user has explicitly confirmed they want
+            organization-wide data (not scoped to a project/team/owner). Default false.
     """
     conn = _get_connection()
     if not conn:
@@ -323,10 +325,11 @@ def run_sql_query(sql: str) -> str:
         return f"Error: {error}"
 
     # Scope enforcement — reject unscoped org-wide cost aggregations
-    scope_error = _check_scope_sql(sql)
-    if scope_error:
-        logger.warning("Scope check failed for query")
-        return f"Error: {scope_error}"
+    if not org_wide_confirmed:
+        scope_error = _check_scope_sql(sql)
+        if scope_error:
+            logger.warning("Scope check failed for query")
+            return f"Error: {scope_error}"
 
     try:
         cursor = conn.cursor(as_dict=True)

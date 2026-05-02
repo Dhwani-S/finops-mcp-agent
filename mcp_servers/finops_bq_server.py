@@ -187,8 +187,8 @@ def _check_scope(sql: str) -> str | None:
         "1. Organization-wide (confirm explicitly)\n"
         "2. A specific project (use cpe_project_name or gcp_project_name)\n"
         "3. A specific team or owner (use bq_list_dimension_values to find the value)\n\n"
-        "Add a WHERE clause with the appropriate scope filter, or get explicit "
-        "user confirmation for org-wide data."
+        "If the user confirms organization-wide, re-call run_bq_query with "
+        "org_wide_confirmed=true and the same SQL."
     )
 
 
@@ -330,7 +330,7 @@ def bq_list_dimension_values(
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
-def run_bq_query(sql: str) -> str:
+def run_bq_query(sql: str, org_wide_confirmed: bool = False) -> str:
     """Execute a read-only BigQuery SQL query against FinOps cost data.
 
     DATA SCOPE: GCP costs, AWS costs, Azure costs, utilization metrics, GCP recommendations.
@@ -349,6 +349,8 @@ def run_bq_query(sql: str) -> str:
 
     Args:
         sql: BigQuery Standard SQL query string.
+        org_wide_confirmed: Set to true ONLY after the user has explicitly confirmed they want
+            organization-wide data (not scoped to a project/team/owner). Default false.
     """
     client = _init_bq_client()
     if not client:
@@ -361,10 +363,11 @@ def run_bq_query(sql: str) -> str:
         return f"Error: {error}"
 
     # Scope enforcement — reject unscoped org-wide cost aggregations
-    scope_error = _check_scope(sql)
-    if scope_error:
-        logger.warning("Scope check failed for query")
-        return f"Error: {scope_error}"
+    if not org_wide_confirmed:
+        scope_error = _check_scope(sql)
+        if scope_error:
+            logger.warning("Scope check failed for query")
+            return f"Error: {scope_error}"
 
     try:
         from google.cloud import bigquery as bq
