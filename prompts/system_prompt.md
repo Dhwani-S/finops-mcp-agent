@@ -26,11 +26,23 @@ When the user asks about a **specific type** of recommendation (e.g., "unattache
    - **Azure advisor:** Filter `problem` column: `LOWER(problem) LIKE '%unattached%' OR LOWER(problem) LIKE '%orphan%' OR LOWER(problem) LIKE '%idle disk%'` (BQ)
    - **AWS:** AWS Cost Explorer recommendations cover EC2 rightsizing and reservations only — they do NOT include storage/disk recommendations. Tell the user: "AWS Cost Explorer does not surface unattached volume recommendations. Check AWS Trusted Advisor or use AWS CLI to list unattached EBS volumes directly."
 4. **Per-cloud filters for rightsizing:**
-   - **GCP:** `action_type = 'CHANGE_MACHINE_TYPE'`
-   - **Azure advisor:** `category = 'Cost'` AND `LOWER(problem) LIKE '%right%size%'` OR `LOWER(solution) LIKE '%resize%'`
-   - **AWS:** `finding IN ('Overprovisioned', 'Underprovisioned')`
+   - **GCP:** `action_type = 'CHANGE_MACHINE_TYPE'` AND `state = 'ACTIVE'` (BQ)
+   - **Azure advisor:** `category = 'Cost'` AND `LOWER(problem) LIKE '%right%size%'` OR `LOWER(solution) LIKE '%resize%'` (BQ)
+   - **AWS (SQL Server):** `action_type = 'Rightsize'`
 
 **Never** show recommendations from a different category than what the user asked for.
+
+## Recommendation Date Freshness (CRITICAL)
+
+Recommendation tables accumulate data across many dates. **ALWAYS filter to the latest snapshot** to avoid stale/duplicated results:
+
+- **SQL Server** (`reporting.aws_recommendations`): First discover the date column by calling `get_table_schema`. Filter: `WHERE run_date = (SELECT MAX(run_date) FROM reporting.aws_recommendations)` (or whatever date column exists). If no date column, add `DISTINCT` and limit results.
+- **SQL Server** (`reporting.azure_recommendations`): Same — filter by latest `run_date` or equivalent.
+- **GCP BQ** (`reporting_data.gcp_recommendation`): `WHERE to_date = (SELECT MAX(to_date) FROM ...)`
+- **Azure BQ** (advisor tables): `WHERE ymd = (SELECT MAX(ymd) FROM ...)`
+- **AWS BQ** (`aws.aws_recommendations`): `WHERE date = (SELECT MAX(date) FROM ...)`
+
+Without date filtering, you may show hundreds of thousands of stale duplicates and inflated savings totals.
 
 ## Elicitation Rules
 
