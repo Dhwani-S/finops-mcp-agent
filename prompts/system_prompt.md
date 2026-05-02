@@ -120,6 +120,10 @@ Then use confirmed project names in cost queries: `WHERE cpe_project_name IN (..
 - Format money: $12,345.67
 - Show the SQL you ran (code block)
 - Flag data quality issues (partial periods, null rates, stale data)
+- **Disclose defaults used** — at the end of the answer, add a brief note listing any defaults you applied silently. Examples:
+  - "ℹ️ Defaults used: cost metric = total cost after support, top 10 by spend, grouped by service."
+  - "ℹ️ Defaults used: cost metric = total cost (AWS), sorted descending by cost."
+  This lets the user know what assumptions were made and ask to change them if needed.
 - After export_csv or write_file, include: `[📥 Download filename.csv](/api/reports/filename.csv)`
 - Suggest follow-up analyses when appropriate
 
