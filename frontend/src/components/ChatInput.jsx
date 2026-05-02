@@ -265,27 +265,27 @@ ${xmlRows}
                 className={`chat-menu-item ${outputPrefs.charts ? 'active' : ''}`}
                 onClick={() => togglePref('charts')}
               >
-                <span className="chat-menu-icon"><Icon name="chart" /></span>
+                <span className="chat-menu-icon"><Icon name="chart" size={12} /></span>
                 <span className="chat-menu-label">Charts</span>
-                <span className={`chat-menu-toggle ${outputPrefs.charts ? 'on' : ''}`} />
+                <svg className="chat-menu-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
               </button>
               <button
                 type="button"
                 className={`chat-menu-item ${outputPrefs.csv ? 'active' : ''}`}
                 onClick={() => togglePref('csv')}
               >
-                <span className="chat-menu-icon"><Icon name="csv" /></span>
+                <span className="chat-menu-icon"><Icon name="csv" size={12} /></span>
                 <span className="chat-menu-label">CSV</span>
-                <span className={`chat-menu-toggle ${outputPrefs.csv ? 'on' : ''}`} />
+                <svg className="chat-menu-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
               </button>
               <button
                 type="button"
                 className={`chat-menu-item ${outputPrefs.excel ? 'active' : ''}`}
                 onClick={() => togglePref('excel')}
               >
-                <span className="chat-menu-icon"><Icon name="excel" /></span>
+                <span className="chat-menu-icon"><Icon name="excel" size={12} /></span>
                 <span className="chat-menu-label">Excel</span>
-                <span className={`chat-menu-toggle ${outputPrefs.excel ? 'on' : ''}`} />
+                <svg className="chat-menu-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
               </button>
             </div>
           )}
