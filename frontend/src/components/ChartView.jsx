@@ -115,14 +115,23 @@ function CustomTooltip({ active, payload, label }) {
   )
 }
 
-function PieLabel({ cx, cy, midAngle, innerRadius, outerRadius, percent }) {
+function PieLabel({ cx, cy, midAngle, outerRadius, percent, name }) {
   if (percent < 0.05) return null
   const RADIAN = Math.PI / 180
-  const radius = innerRadius + (outerRadius - innerRadius) * 0.5
+  // Place labels outside the pie with a line
+  const radius = outerRadius + 24
   const x = cx + radius * Math.cos(-midAngle * RADIAN)
   const y = cy + radius * Math.sin(-midAngle * RADIAN)
   return (
-    <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" fontSize={12} fontWeight={600}>
+    <text
+      x={x}
+      y={y}
+      fill="var(--text-secondary)"
+      textAnchor={x > cx ? 'start' : 'end'}
+      dominantBaseline="central"
+      fontSize={11}
+      fontWeight={500}
+    >
       {`${(percent * 100).toFixed(0)}%`}
     </text>
   )
@@ -135,6 +144,13 @@ export default function ChartView({ chartData }) {
 
   const { data, labelKey, valueKeys } = chartData
   const primaryValue = valueKeys[0]
+
+  // Pie chart needs more height when there are many legend items
+  const pieHeight = Math.max(380, 300 + data.length * 12)
+
+  // Truncate long labels for better chart readability
+  const truncateLabel = (label, max = 30) =>
+    typeof label === 'string' && label.length > max ? label.slice(0, max) + '…' : label
 
   return (
     <div className="chart-view">
@@ -163,6 +179,7 @@ export default function ChartView({ chartData }) {
                 angle={-35}
                 textAnchor="end"
                 tick={{ fill: 'var(--text-secondary)', fontSize: 11 }}
+                tickFormatter={(v) => truncateLabel(v, 25)}
                 interval={0}
                 height={80}
               />
@@ -181,16 +198,16 @@ export default function ChartView({ chartData }) {
         )}
 
         {chartType === 'pie' && (
-          <ResponsiveContainer width="100%" height={300}>
+          <ResponsiveContainer width="100%" height={pieHeight}>
             <PieChart>
               <Pie
                 data={data}
                 dataKey={primaryValue}
                 nameKey={labelKey}
                 cx="50%"
-                cy="50%"
-                outerRadius={110}
-                labelLine={false}
+                cy="40%"
+                outerRadius={Math.min(110, 90 + Math.max(0, 8 - data.length) * 3)}
+                labelLine
                 label={PieLabel}
               >
                 {data.map((_, i) => (
@@ -199,7 +216,15 @@ export default function ChartView({ chartData }) {
               </Pie>
               <Tooltip content={<CustomTooltip />} />
               <Legend
-                formatter={(value) => <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{value}</span>}
+                layout="horizontal"
+                verticalAlign="bottom"
+                align="center"
+                wrapperStyle={{ paddingTop: '16px', fontSize: '12px', lineHeight: '1.8' }}
+                formatter={(value) => (
+                  <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
+                    {truncateLabel(value, 40)}
+                  </span>
+                )}
               />
             </PieChart>
           </ResponsiveContainer>

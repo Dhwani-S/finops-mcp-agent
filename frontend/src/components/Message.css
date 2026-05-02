@@ -264,3 +264,77 @@
   border-color: var(--accent);
   color: var(--accent);
 }
+
+/* ── Copy result button ── */
+.message-content {
+  position: relative;
+}
+
+.copy-result-btn {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s, background 0.15s, border-color 0.15s;
+  z-index: 1;
+}
+
+.message-agent:hover .copy-result-btn {
+  opacity: 1;
+}
+
+.copy-result-btn:hover {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-elevated));
+}
+
+.copy-result-btn.copied {
+  opacity: 1;
+  color: var(--success);
+  border-color: color-mix(in srgb, var(--success) 40%, transparent);
+}
+
+/* ── Bold / strong text — make it actually visible ── */
+.message-content strong {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* ── Numbered list items with bold — nicer presentation ── */
+.message-content ol li strong {
+  color: var(--text-primary);
+}
+
+.message-content ol li {
+  margin-bottom: 0.35rem;
+  line-height: 1.55;
+}
+
+/* ── Horizontal rules ── */
+.message-content hr {
+  border: none;
+  border-top: 1px solid var(--border-subtle);
+  margin: 0.75rem 0;
+}
+
+/* ── Blockquotes ── */
+.message-content blockquote {
+  border-left: 3px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  padding: 0.25rem 0.75rem;
+  margin: 0.5rem 0;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--accent) 3%, transparent);
+  border-radius: 0 6px 6px 0;
+}
