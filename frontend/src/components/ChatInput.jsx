@@ -84,7 +84,10 @@ export default function ChatInput({
     const el = inputRef.current
     if (!el) return
     el.style.height = 'auto'
-    el.style.height = el.scrollHeight + 'px'
+    const maxH = parseFloat(getComputedStyle(el).maxHeight) || 128
+    const scrollH = el.scrollHeight
+    el.style.height = scrollH + 'px'
+    el.style.overflowY = scrollH > maxH ? 'auto' : 'hidden'
   }
 
   useEffect(() => {
