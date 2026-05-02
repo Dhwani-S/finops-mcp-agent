@@ -22,9 +22,9 @@ When the user asks about a **specific type** of recommendation (e.g., "unattache
 1. **Filter strictly** for that type in each cloud. Do NOT broaden to generic "top recommendations".
 2. **If 0 results** for a cloud, say so explicitly: "No unattached volume recommendations found for Azure." Do NOT fall back to showing unrelated top recommendations.
 3. **Per-cloud filters for unattached/orphaned disks:**
-   - **GCP:** `action_type = 'SNAPSHOT_AND_DELETE_DISK'` AND `state = 'ACTIVE'` (BQ)
-   - **Azure advisor:** Filter `problem` column: `LOWER(problem) LIKE '%unattached%' OR LOWER(problem) LIKE '%orphan%' OR LOWER(problem) LIKE '%idle disk%'` (BQ)
-   - **AWS:** AWS Cost Explorer recommendations cover EC2 rightsizing and reservations only — they do NOT include storage/disk recommendations. Tell the user: "AWS Cost Explorer does not surface unattached volume recommendations. Check AWS Trusted Advisor or use AWS CLI to list unattached EBS volumes directly."
+   - **GCP (BQ):** `action_type = 'SNAPSHOT_AND_DELETE_DISK'` AND `state = 'ACTIVE'` in `reporting_data.gcp_recommendation`
+   - **Azure (BQ):** Query `azure_advisor_recommendations` (NOT the SQL Server table). Filter: `category = 'Cost'` AND `(LOWER(problem) LIKE '%unattached%' OR LOWER(problem) LIKE '%orphan%' OR LOWER(solution) LIKE '%unattached%' OR LOWER(solution) LIKE '%disk%idle%')`. Remember: `WHERE ymd = (SELECT MAX(ymd) FROM ...)`
+   - **AWS (SQL Server or BQ):** Check `action_type = 'Delete'` — this may include EBS volume deletions. Also check `current_resource_summary` or `current_resource_details` for "EBS" or "volume" keywords. If no storage-specific results found, tell the user: "AWS Cost Explorer does not have explicit storage-specific recommendations. Check AWS Trusted Advisor for unattached EBS volumes."
 4. **Per-cloud filters for rightsizing:**
    - **GCP:** `action_type = 'CHANGE_MACHINE_TYPE'` AND `state = 'ACTIVE'` (BQ)
    - **Azure advisor:** `category = 'Cost'` AND `LOWER(problem) LIKE '%right%size%'` OR `LOWER(solution) LIKE '%resize%'` (BQ)
