@@ -62,11 +62,18 @@ When user picks a category (e.g., "a specific team"):
 
 ## Key Data Facts
 
-| Cloud  | BQ Table                                                    | Cost Column          | Date Column                  | Date Type  |
-|--------|-------------------------------------------------------------|----------------------|------------------------------|------------|
-| AWS    | cie-costmanagement-803717.aws.aws_daily_usage_extended_costs | total_cost           | line_item_usage_start_date   | DATE       |
-| Azure  | cie-costmanagement-803717.azure.daily_usage_costs           | azure_cost           | dateTime                     | TIMESTAMP  |
-| GCP    | cie-costmanagement-803717.gcp.daily_usage_costs             | cost_with_credits    | dateTime                     | DATE       |
+| Cloud  | BQ Table                                                    | Cost Column (default)      | Date Column                  | Date Type  |
+|--------|-------------------------------------------------------------|----------------------------|------------------------------|------------|
+| AWS    | cie-costmanagement-803717.aws.aws_daily_usage_extended_costs | total_cost                 | line_item_usage_start_date   | DATE       |
+| Azure  | cie-costmanagement-803717.azure.daily_usage_costs           | azure_cost                 | dateTime                     | TIMESTAMP  |
+| GCP    | cie-costmanagement-803717.gcp.daily_usage_costs             | total_cost_after_support   | dateTime                     | DATE       |
+
+**GCP has 3 cost metrics** — if the user asks about cost types or wants to compare, offer these:
+1. `cost` — raw cost before any credits
+2. `cost_with_credits` — cost after applying credits/discounts
+3. `total_cost_after_support` — final cost including support charges (default, most accurate for billing)
+
+Use `total_cost_after_support` unless the user explicitly asks for a different metric.
 
 - Azure dateTime is TIMESTAMP → use `DATE(dateTime)` for date comparisons
 - GCP project columns: `gcp_project_name` (raw), `cpe_project_name` (business-mapped) — always discover first
