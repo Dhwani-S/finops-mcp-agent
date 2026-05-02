@@ -236,7 +236,7 @@ ${xmlRows}
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="For example: Give me last month's top ten Azure services by cost..."
+            placeholder="Ask a question... (Shift+Enter for new line)"
             rows={1}
             disabled={isLoading}
             aria-label="Your question"

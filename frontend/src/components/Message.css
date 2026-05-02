@@ -21,6 +21,7 @@
 .message-user .message-content {
   font-size: inherit;
   line-height: inherit;
+  white-space: pre-wrap;
 }
 
 /* Agent: flat “thread” line — reads like content, not a heavy card */
