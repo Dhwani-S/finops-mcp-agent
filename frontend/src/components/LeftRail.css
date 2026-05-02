@@ -287,6 +287,30 @@
   overflow: hidden;
 }
 
+.left-rail-session-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.left-rail-session-tag {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  opacity: 0.85;
+}
+
+.left-rail-tag-label {
+  font-size: 0.6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.75;
+  margin-right: 0.25rem;
+}
+
 .left-rail-session-meta {
   font-size: 0.68rem;
   color: var(--text-muted);

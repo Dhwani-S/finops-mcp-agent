@@ -38,6 +38,48 @@ load_dotenv(_project_root / ".env")
 
 logger = logging.getLogger("finops-api")
 
+# ---------------------------------------------------------------------------
+# Elicitation block extraction
+# ---------------------------------------------------------------------------
+
+import re as _re
+
+_ELICITATION_RE = _re.compile(
+    r"```elicitation\s*\n(.*?)\n```",
+    _re.DOTALL,
+)
+
+
+def _extract_elicitation(text: str):
+    """Extract ALL ```elicitation {...} ``` blocks from LLM output.
+
+    Returns (prose_without_blocks, list_of_elicitation_dicts | None).
+    """
+    matches = list(_ELICITATION_RE.finditer(text))
+    if not matches:
+        return text, None
+
+    payloads = []
+    for match in matches:
+        try:
+            payload = json.loads(match.group(1))
+            if "type" in payload:
+                payloads.append(payload)
+        except (json.JSONDecodeError, ValueError):
+            continue
+
+    if not payloads:
+        return text, None
+
+    # Remove ALL elicitation blocks from prose (reverse order to preserve indices)
+    prose = text
+    for match in reversed(matches):
+        prose = prose[: match.start()] + prose[match.end() :]
+    prose = prose.replace("\n\n\n", "\n\n").strip()
+
+    # Return single dict if only one, array if multiple
+    return prose, payloads if len(payloads) > 1 else payloads[0]
+
 
 # ---------------------------------------------------------------------------
 # StreamingAgent — extends FinOpsAgent with SSE event yielding
@@ -96,7 +138,12 @@ class StreamingAgent(FinOpsAgent):
             if not fn_calls:
                 text = "".join(p.text for p in parts if p.text) or ""
                 self._history.append(candidate.content)
-                yield {"event": "text", "data": json.dumps({"content": text})}
+
+                # Extract structured elicitation block if present
+                prose, elicitation = _extract_elicitation(text)
+                yield {"event": "text", "data": json.dumps({"content": prose})}
+                if elicitation:
+                    yield {"event": "elicitation", "data": json.dumps(elicitation)}
                 yield {"event": "done", "data": json.dumps({"rounds": round_num + 1})}
                 return
 

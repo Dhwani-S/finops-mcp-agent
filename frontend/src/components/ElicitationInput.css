@@ -1,0 +1,530 @@
+/* ── ElicitationInput — Dynamic input controls ── */
+
+.elicit {
+  width: fit-content;
+  max-width: min(100%, 26rem);
+  margin-top: 0.45rem;
+  padding: 0.48rem 0.62rem;
+  border-radius: var(--radius-md, 10px);
+  background: color-mix(in srgb, var(--bg-elevated, #1e1e2e) 42%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-subtle, #2e2e3e) 78%, transparent);
+  border-left: 2px solid color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.elicit-label {
+  font-size: 0.72rem;
+  font-weight: 620;
+  color: var(--text-primary, #e0e0e0);
+  margin-bottom: 0.34rem;
+}
+
+/* ─── Chips ─── */
+.elicit-chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.elicit-chip {
+  padding: 0.25rem 0.58rem;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 540;
+  border: 1px solid color-mix(in srgb, var(--accent) 12%, var(--border-subtle, #3a3a4a));
+  background: color-mix(in srgb, var(--bg-card, #1e1e2e) 48%, transparent);
+  color: var(--text-secondary, #a0a0b0);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  position: relative;
+}
+
+.elicit-chip:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 7%, var(--bg-card, #1e1e2e));
+  border-color: color-mix(in srgb, var(--accent) 34%, transparent);
+  color: var(--text-primary, #e0e0e0);
+  transform: none;
+  box-shadow: none;
+}
+
+.elicit-chip:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.elicit-chip:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+}
+
+.elicit-chip.selected {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 42%, transparent);
+  color: var(--accent, #6366f1);
+  box-shadow: none;
+}
+
+.elicit-chip--all {
+  font-weight: 600;
+  border-color: color-mix(in srgb, var(--accent) 32%, transparent);
+  color: var(--accent, #6366f1);
+}
+
+.elicit-chip--all.selected {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 42%, transparent);
+  color: var(--accent, #6366f1);
+}
+
+/* ─── Submit button (shared) ─── */
+.elicit-submit {
+  margin-top: 0.42rem;
+  padding: 0.32rem 0.72rem;
+  border-radius: var(--radius-md, 8px);
+  font-size: 0.72rem;
+  font-weight: 600;
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent, #6366f1);
+  cursor: pointer;
+  transition: all 0.15s;
+  box-shadow: none;
+}
+
+.elicit-submit:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 48%, transparent);
+  opacity: 1;
+  transform: none;
+  box-shadow: none;
+}
+
+.elicit-submit--confirm {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 48%, transparent);
+  animation: pulse-confirm 1.5s ease-in-out 1;
+}
+
+@keyframes pulse-confirm {
+  0%, 100% { box-shadow: none; }
+  50% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+}
+
+.elicit-auto-hint {
+  display: inline-block;
+  margin-top: 0.3rem;
+  font-size: 0.68rem;
+  color: var(--text-muted, #888);
+  font-weight: 500;
+}
+
+.elicit-submit:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.elicit-submit:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* ─── Row layout (dropdown + button) ─── */
+.elicit-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+/* ─── Dropdown select ─── */
+.elicit-select {
+  flex: 1;
+  padding: 0.34rem 0.52rem;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--border-subtle, #3a3a4a);
+  background: var(--bg-input, #161622);
+  color: var(--text-primary, #e0e0e0);
+  font-size: 0.76rem;
+  appearance: auto;
+}
+
+.elicit-select:focus {
+  outline: none;
+  border-color: var(--accent, #6366f1);
+}
+
+/* ─── Multi-Dropdown ─── */
+.elicit-multi-dropdown {
+  position: relative;
+}
+
+.elicit-dropdown-trigger {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.36rem 0.6rem;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--border-subtle, #3a3a4a);
+  background: var(--bg-input, #161622);
+  color: var(--text-primary, #e0e0e0);
+  font-size: 0.76rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.elicit-dropdown-trigger:hover:not(:disabled) {
+  border-color: var(--accent, #6366f1);
+}
+
+.elicit-caret {
+  font-size: 0.65rem;
+  opacity: 0.6;
+}
+
+.elicit-dropdown-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--bg-card, #1e1e2e);
+  border: 1px solid var(--border-subtle, #3a3a4a);
+  border-radius: var(--radius-md, 8px);
+  z-index: 50;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  max-height: 260px;
+  display: flex;
+  flex-direction: column;
+}
+
+.elicit-dropdown-search {
+  padding: 0.4rem 0.6rem;
+  border: none;
+  border-bottom: 1px solid var(--border-subtle, #2e2e3e);
+  background: transparent;
+  color: var(--text-primary, #e0e0e0);
+  font-size: 0.8rem;
+  outline: none;
+}
+
+.elicit-dropdown-list {
+  overflow-y: auto;
+  max-height: 200px;
+  padding: 0.25rem 0;
+}
+
+.elicit-check-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.62rem;
+  font-size: 0.76rem;
+  color: var(--text-primary, #e0e0e0);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.elicit-check-row:hover {
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.elicit-check-row input[type="checkbox"] {
+  accent-color: var(--accent, #6366f1);
+  width: 14px;
+  height: 14px;
+}
+
+.elicit-check-all {
+  font-weight: 600;
+  border-bottom: 1px solid var(--border-subtle, #2e2e3e);
+  padding: 0.4rem 0.7rem;
+}
+
+.elicit-no-match {
+  padding: 0.6rem;
+  text-align: center;
+  color: var(--text-muted, #666);
+  font-size: 0.78rem;
+}
+
+/* ─── Searchable ─── */
+.elicit-searchable {
+  position: relative;
+}
+
+.elicit-search-input {
+  width: 100%;
+  padding: 0.36rem 0.6rem;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--border-subtle, #3a3a4a);
+  background: var(--bg-input, #161622);
+  color: var(--text-primary, #e0e0e0);
+  font-size: 0.76rem;
+}
+
+.elicit-search-input:focus {
+  outline: none;
+  border-color: var(--accent, #6366f1);
+}
+
+.elicit-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-bottom: 0.4rem;
+}
+
+.elicit-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  background: var(--accent, #6366f1);
+  color: #fff;
+}
+
+.elicit-tag-x {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1;
+  padding: 0 0.15rem;
+}
+
+.elicit-tag-x:hover {
+  color: #fff;
+}
+
+.elicit-suggestion-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--bg-card, #1e1e2e);
+  border: 1px solid var(--border-subtle, #3a3a4a);
+  border-radius: var(--radius-md, 8px);
+  z-index: 50;
+  max-height: 180px;
+  overflow-y: auto;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  margin-top: 4px;
+}
+
+.elicit-suggestion {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.8rem;
+  border: none;
+  background: transparent;
+  color: var(--text-primary, #e0e0e0);
+  cursor: pointer;
+}
+
+.elicit-suggestion:hover:not(:disabled) {
+  background: rgba(99, 102, 241, 0.1);
+}
+
+.elicit-suggestion.picked {
+  opacity: 0.4;
+}
+
+/* ─── Date Range ─── */
+.elicit-date-row {
+  display: flex;
+  gap: 0.55rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.elicit-date-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.7rem;
+  color: var(--text-muted, #888);
+}
+
+.elicit-date-field input[type="date"] {
+  padding: 0.3rem 0.45rem;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--border-subtle, #3a3a4a);
+  background: var(--bg-input, #161622);
+  color: var(--text-primary, #e0e0e0);
+  font-size: 0.74rem;
+}
+
+.elicit-date-field input[type="date"]:focus {
+  outline: none;
+  border-color: var(--accent, #6366f1);
+}
+
+/* ─── Slider ─── */
+.elicit-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.elicit-slider-min,
+.elicit-slider-max {
+  font-size: 0.72rem;
+  color: var(--text-muted, #888);
+}
+
+.elicit-slider-val {
+  min-width: 2.5rem;
+  text-align: center;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--accent, #6366f1);
+}
+
+.elicit-range {
+  flex: 1;
+  accent-color: var(--accent, #6366f1);
+  height: 4px;
+}
+
+/* ─── Toggle ─── */
+.elicit-toggle-row {
+  display: flex;
+  gap: 0;
+  border-radius: var(--radius-md, 8px);
+  overflow: hidden;
+  border: 1px solid var(--border-subtle, #3a3a4a);
+  width: fit-content;
+}
+
+.elicit-toggle-btn {
+  padding: 0.34rem 1rem;
+  font-size: 0.76rem;
+  border: none;
+  background: transparent;
+  color: var(--text-primary, #e0e0e0);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.elicit-toggle-btn.active {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent, #6366f1);
+}
+
+/* ─── Text Input ─── */
+.elicit-text {
+  flex: 1;
+  padding: 0.34rem 0.52rem;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--border-subtle, #3a3a4a);
+  background: var(--bg-input, #161622);
+  color: var(--text-primary, #e0e0e0);
+  font-size: 0.76rem;
+}
+
+.elicit-text:focus {
+  outline: none;
+  border-color: var(--accent, #6366f1);
+}
+
+/* ─── Checkbox List ─── */
+.elicit-checkbox-items {
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid var(--border-subtle, #2e2e3e);
+  border-radius: var(--radius-md, 8px);
+  margin-top: 0.3rem;
+  padding: 0.25rem 0;
+}
+
+/* ─── Elicitation Group (multiple inputs) ─── */
+.elicit-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.elicit-group .elicit {
+  margin-top: 0;
+}
+
+.elicit-group-item.answered .elicit {
+  padding: 0.42rem 0.62rem;
+}
+
+.elicit-group-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.4rem;
+  padding: 0 0.25rem;
+}
+
+.elicit-group-status {
+  font-size: 0.75rem;
+  color: var(--text-muted, #888);
+  font-weight: 500;
+}
+
+.elicit-group-send {
+  margin-top: 0;
+  background: var(--accent, #6366f1);
+  color: #fff;
+  border-color: var(--accent, #6366f1);
+  font-weight: 650;
+  padding: 0.38rem 1rem;
+  border-radius: 999px;
+}
+
+.elicit-group-send:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent, #6366f1) 85%, #000);
+  border-color: color-mix(in srgb, var(--accent, #6366f1) 85%, #000);
+  color: #fff;
+}
+
+/* ─── Answered state ─── */
+.elicit-answered {
+  background: color-mix(in srgb, var(--bg-elevated, #1e1e2e) 34%, transparent);
+  border: 1px solid color-mix(in srgb, var(--success, #22c55e) 20%, var(--border-subtle, #2e2e3e));
+  border-left-color: color-mix(in srgb, var(--success, #22c55e) 24%, transparent);
+}
+
+.elicit-answered-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.elicit-answered-label {
+  font-size: 0.72rem;
+  color: var(--text-secondary, #a0a0b0);
+  font-weight: 600;
+}
+
+.elicit-answered-value {
+  font-size: 0.76rem;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  padding: 0.16rem 0.5rem;
+  border-radius: 999px;
+  color: var(--accent, #6366f1);
+}
+
+.elicit-answered-change {
+  margin-left: auto;
+  font-size: 0.7rem;
+  color: var(--text-muted, #888);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0.2rem 0.4rem;
+}
+
+.elicit-answered-change:hover {
+  color: var(--accent, #6366f1);
+}

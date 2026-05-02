@@ -1,10 +1,61 @@
-import { useState, Children, isValidElement } from 'react'
+import { useState, useEffect, useRef, Children, isValidElement } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import ToolEvent from './ToolEvent'
 import ReasoningBlock from './ReasoningBlock'
 import ChartView, { extractChartData } from './ChartView'
+import ElicitationInput, { ElicitationGroup } from './ElicitationInput'
 import './Message.css'
+
+/**
+ * Hook that progressively reveals text with a typing animation.
+ * Once fully revealed, returns the full text permanently.
+ */
+function useTypingEffect(text, speed = 12, skip = false) {
+  const [displayed, setDisplayed] = useState(skip ? text : '')
+  const [done, setDone] = useState(skip)
+  const prevTextRef = useRef(skip ? text : '')
+
+  useEffect(() => {
+    if (skip) {
+      setDisplayed(text || '')
+      setDone(true)
+      return
+    }
+
+    if (!text) {
+      setDisplayed('')
+      setDone(false)
+      return
+    }
+
+    // If text hasn't changed, skip (already displayed)
+    if (text === prevTextRef.current && done) return
+
+    prevTextRef.current = text
+    setDone(false)
+
+    let idx = 0
+    // Start from wherever we already revealed
+    const startFrom = displayed.length < text.length ? displayed.length : 0
+    idx = startFrom
+
+    const interval = setInterval(() => {
+      // Reveal in chunks of characters for speed
+      const chunkSize = Math.max(1, Math.ceil((text.length - startFrom) / 120))
+      idx = Math.min(idx + chunkSize, text.length)
+      setDisplayed(text.slice(0, idx))
+      if (idx >= text.length) {
+        clearInterval(interval)
+        setDone(true)
+      }
+    }, speed)
+
+    return () => clearInterval(interval)
+  }, [text, skip]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  return done ? text : displayed
+}
 
 function ChartIcon({ size = 14 }) {
   return (
@@ -45,11 +96,11 @@ function extractOptions(text) {
   const matches = [...text.matchAll(optionRe)]
   if (matches.length < 2) return { prose: text, options: [] }
 
-  // If the numbered items contain markdown bold, dollar amounts, or are
+  // If the numbered items contain dollar amounts or are
   // questions (contain "?"), they are rich/elicitation content — not clickable
   // options. Let ReactMarkdown render them as normal text.
   const hasRichContent = matches.some(
-    (m) => /\*\*/.test(m[1]) || /\$[\d,]+/.test(m[1]) || /\?/.test(m[1])
+    (m) => /\$[\d,]+/.test(m[1]) || /\?/.test(m[1])
   )
   if (hasRichContent) return { prose: text, options: [] }
 
@@ -335,8 +386,14 @@ function OptionChips({ options, onOptionClick, disabled }) {
 }
 
 export default function Message({ message, onOptionClick, disabled, chartMode }) {
-  const { role, content, events, loading } = message
+  const { role, content, events, loading, elicitation } = message
   const [showChart, setShowChart] = useState(false)
+
+  // Track if this message had content on first mount (i.e. loaded from history)
+  const wasCompleteOnMount = useRef(!loading && !!content)
+
+  // Typing effect: only for agent responses arriving live, not history
+  const typedContent = useTypingEffect(loading ? '' : content, 12, wasCompleteOnMount.current)
 
   if (role === 'user') {
     return (
@@ -346,9 +403,11 @@ export default function Message({ message, onOptionClick, disabled, chartMode })
     )
   }
 
-  const { prose, options } = extractOptions(content)
+  const { prose, options } = extractOptions(typedContent)
   const chartDataList = extractChartData(events)
   const hasCharts = chartDataList.length > 0 && !loading
+
+  const isTyping = !loading && content && typedContent !== content
 
   return (
     <div className="message message-agent">
@@ -356,8 +415,8 @@ export default function Message({ message, onOptionClick, disabled, chartMode })
         <ReasoningBlock events={events} loading={loading} />
       )}
       {prose && (
-        <div className="message-content">
-          {!loading && content && (
+        <div className={`message-content ${isTyping ? 'is-typing' : ''}`}>
+          {!loading && content && typedContent === content && (
             <CopyButton text={content} />
           )}
           <ReactMarkdown
@@ -392,8 +451,19 @@ export default function Message({ message, onOptionClick, disabled, chartMode })
           </ReactMarkdown>
         </div>
       )}
-      {options.length > 0 && (
+      {options.length > 0 && !elicitation && (
         <OptionChips options={options} onOptionClick={onOptionClick} disabled={disabled} />
+      )}
+      {elicitation && (
+        <div className="message-elicit-wrap">
+          <div className="message-elicit-kicker">
+            <span className="message-elicit-dot" aria-hidden="true" />
+            Input needed
+          </div>
+          {Array.isArray(elicitation)
+            ? <ElicitationGroup configs={elicitation} onSubmit={onOptionClick} disabled={disabled} />
+            : <ElicitationInput config={elicitation} onSubmit={onOptionClick} disabled={disabled} />}
+        </div>
       )}
       {hasCharts && !chartMode && (
         <div className="chart-toggle-bar">
@@ -409,9 +479,12 @@ export default function Message({ message, onOptionClick, disabled, chartMode })
       {hasCharts && (chartMode || showChart) && chartDataList.map((cd, i) => (
         <ChartView key={i} chartData={cd} />
       ))}
-      {loading && !content && (
+      {loading && !content && !(events && events.length > 0) && (
         <div className="message-loading">
-          <span className="dot" /><span className="dot" /><span className="dot" />
+          <div className="loading-dots">
+            <span /><span /><span />
+          </div>
+          <span className="loading-label">Agent is analyzing…</span>
         </div>
       )}
     </div>

@@ -132,35 +132,76 @@
 
 .message-loading {
   display: flex;
-  gap: 4px;
-  padding: 0.2rem 0;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
 }
 
-.dot {
+.loading-dots {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+}
+
+.loading-dots span {
   width: 5px;
   height: 5px;
-  background: var(--accent);
   border-radius: 50%;
-  opacity: 0.55;
-  animation: pulse 1.2s infinite;
-  box-shadow: none;
+  background: var(--accent);
+  animation: dot-bounce 1.4s ease-in-out infinite;
 }
 
-.dot:nth-child(2) {
-  animation-delay: 0.2s;
+.loading-dots span:nth-child(2) { animation-delay: 0.16s; }
+.loading-dots span:nth-child(3) { animation-delay: 0.32s; }
+
+@keyframes dot-bounce {
+  0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+  40% { opacity: 1; transform: scale(1.1); }
 }
 
-.dot:nth-child(3) {
-  animation-delay: 0.4s;
+.loading-shimmer {
+  width: 3rem;
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--accent) 20%, transparent),
+    var(--accent),
+    color-mix(in srgb, var(--accent) 20%, transparent)
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
 }
 
-@keyframes pulse {
-  0%, 80%, 100% {
-    opacity: 0.25;
-  }
-  40% {
-    opacity: 0.85;
-  }
+.loading-label {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  animation: fade-pulse 2s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes fade-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+/* Typing cursor blink for in-progress text */
+.message-content.is-typing::after {
+  content: '▊';
+  display: inline;
+  color: var(--accent);
+  animation: cursor-blink 0.8s steps(2) infinite;
+  font-size: 0.85em;
+  margin-left: 1px;
+}
+
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
 }
 
 .message-options {
@@ -251,6 +292,33 @@
   background: color-mix(in srgb, var(--accent) 10%, transparent);
   border-radius: 50%;
   flex-shrink: 0;
+}
+
+.message-elicit-wrap {
+  margin-top: 0.55rem;
+  padding-top: 0.45rem;
+  border-top: 1px dashed color-mix(in srgb, var(--accent) 18%, var(--border-subtle));
+}
+
+.message-elicit-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+  margin-bottom: 0.18rem;
+  color: color-mix(in srgb, var(--accent) 62%, var(--text-muted));
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.message-elicit-dot {
+  width: 0.36rem;
+  height: 0.36rem;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.7;
 }
 
 /* Download link — styled as a button-like pill */

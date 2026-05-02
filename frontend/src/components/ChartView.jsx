@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import {
   BarChart, Bar, PieChart, Pie, Cell,
+  LineChart, Line, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer,
 } from 'recharts'
@@ -17,7 +18,7 @@ const COLORS = [
   'var(--chart-8, #14b8a6)',
 ]
 
-const CHART_TYPES = ['bar', 'pie']
+const CHART_TYPES = ['bar', 'line', 'area', 'hbar', 'pie', 'donut']
 
 function ChartTypeIcon({ type }) {
   const common = {
@@ -41,6 +42,44 @@ function ChartTypeIcon({ type }) {
     )
   }
 
+  if (type === 'donut') {
+    return (
+      <svg {...common}>
+        <circle cx="12" cy="12" r="9" />
+        <circle cx="12" cy="12" r="4" />
+      </svg>
+    )
+  }
+
+  if (type === 'line') {
+    return (
+      <svg {...common}>
+        <path d="M4 19 8 13 12 15 16 9 20 5" />
+      </svg>
+    )
+  }
+
+  if (type === 'area') {
+    return (
+      <svg {...common}>
+        <path d="M4 19 8 13 12 15 16 9 20 5V19H4Z" fill="currentColor" opacity="0.2" />
+        <path d="M4 19 8 13 12 15 16 9 20 5" />
+      </svg>
+    )
+  }
+
+  if (type === 'hbar') {
+    return (
+      <svg {...common}>
+        <path d="M4 4v16" />
+        <path d="M4 20h16" />
+        <rect x="6" y="6" width="10" height="3" rx="1" />
+        <rect x="6" y="11" width="7" height="3" rx="1" />
+        <rect x="6" y="16" width="12" height="3" rx="1" />
+      </svg>
+    )
+  }
+
   return (
     <svg {...common}>
       <path d="M4 19V5" />
@@ -50,6 +89,45 @@ function ChartTypeIcon({ type }) {
       <rect x="17" y="9" width="3" height="7" rx="1" />
     </svg>
   )
+}
+
+const CHART_TYPE_LABELS = {
+  bar: 'Bar',
+  line: 'Line',
+  area: 'Area',
+  hbar: 'H-Bar',
+  pie: 'Pie',
+  donut: 'Donut',
+}
+
+/**
+ * Auto-detect the best chart type based on data characteristics.
+ */
+function detectBestChartType(data, labelKey, valueKeys) {
+  if (!data || data.length === 0) return 'bar'
+
+  const rowCount = data.length
+  const labels = data.map((r) => r[labelKey])
+  const distinctLabels = new Set(labels).size
+  const hasMultipleValues = valueKeys.length > 1
+
+  // Check if labels look like dates/time-series
+  const datePattern = /^\d{4}[-/]\d{2}|^\d{2}[-/]\d{2}|^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|q[1-4]|week|day|month)/i
+  const isTimeSeries = labels.filter((l) => datePattern.test(String(l))).length > rowCount * 0.5
+
+  if (isTimeSeries) return hasMultipleValues ? 'area' : 'line'
+
+  // Few categories with single value → donut/pie
+  if (distinctLabels <= 6 && !hasMultipleValues) return 'donut'
+
+  // Many categories (>8) with long labels → horizontal bar
+  const avgLabelLen = labels.reduce((s, l) => s + String(l).length, 0) / rowCount
+  if (rowCount > 8 || avgLabelLen > 20) return 'hbar'
+
+  // Multiple value keys → grouped bar
+  if (hasMultipleValues) return 'bar'
+
+  return 'bar'
 }
 
 /**
@@ -107,7 +185,7 @@ export function extractChartData(events) {
     const valueKeys = numericKeys
 
     // Build chart-ready data — filter out rows where all numeric values are zero
-    const data = parsed
+    let data = parsed
       .map((row) => {
         const entry = { [labelKey]: row[labelKey] }
         for (const vk of valueKeys) {
@@ -116,6 +194,30 @@ export function extractChartData(events) {
         return entry
       })
       .filter((entry) => valueKeys.some((vk) => entry[vk] && Math.abs(entry[vk]) > 0.005))
+
+    // Deduplicate: if label values repeat, aggregate by summing numeric values
+    const labelCounts = {}
+    for (const row of data) {
+      labelCounts[row[labelKey]] = (labelCounts[row[labelKey]] || 0) + 1
+    }
+    const hasDuplicates = Object.values(labelCounts).some((c) => c > 1)
+    if (hasDuplicates) {
+      const grouped = {}
+      for (const row of data) {
+        const key = row[labelKey]
+        if (!grouped[key]) {
+          grouped[key] = { ...row, __count: 1 }
+        } else {
+          for (const vk of valueKeys) {
+            grouped[key][vk] = (grouped[key][vk] || 0) + (row[vk] || 0)
+          }
+          grouped[key].__count++
+        }
+      }
+      data = Object.values(grouped).map(({ __count, ...rest }) => rest)
+    }
+
+    if (data.length < 1) continue
 
     charts.push({
       label: evt.tool || 'Query result',
@@ -171,14 +273,20 @@ function PieLabel({ cx, cy, midAngle, outerRadius, percent, name }) {
 }
 
 export default function ChartView({ chartData }) {
-  const [chartType, setChartType] = useState('bar')
+  const { data, labelKey, valueKeys } = chartData || {}
 
-  if (!chartData || chartData.data.length === 0) return null
+  const bestType = useMemo(
+    () => detectBestChartType(data, labelKey, valueKeys),
+    [data, labelKey, valueKeys]
+  )
+  const [chartType, setChartType] = useState(null) // null = use auto-detected
 
-  const { data, labelKey, valueKeys } = chartData
+  if (!chartData || !data || data.length === 0) return null
+
+  const activeType = chartType || bestType
   const primaryValue = valueKeys[0]
 
-  // Pie chart needs more height when there are many legend items
+  // Pie/Donut chart needs more height when there are many legend items
   const pieHeight = Math.max(380, 300 + data.length * 12)
 
   // Truncate long labels for better chart readability
@@ -193,18 +301,19 @@ export default function ChartView({ chartData }) {
             <button
               key={t}
               type="button"
-              className={`chart-type-btn ${chartType === t ? 'active' : ''}`}
+              className={`chart-type-btn ${activeType === t ? 'active' : ''}`}
               onClick={() => setChartType(t)}
+              title={CHART_TYPE_LABELS[t]}
             >
               <ChartTypeIcon type={t} />
-              {t.charAt(0).toUpperCase() + t.slice(1)}
+              {CHART_TYPE_LABELS[t]}
             </button>
           ))}
         </div>
       </div>
 
       <div className="chart-container">
-        {chartType === 'bar' && (
+        {activeType === 'bar' && (
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={data} margin={{ top: 10, right: 20, left: 10, bottom: 60 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
@@ -231,7 +340,102 @@ export default function ChartView({ chartData }) {
           </ResponsiveContainer>
         )}
 
-        {chartType === 'pie' && (
+        {activeType === 'hbar' && (
+          <ResponsiveContainer width="100%" height={Math.max(300, data.length * 36)}>
+            <BarChart data={data} layout="vertical" margin={{ top: 10, right: 20, left: 10, bottom: 10 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" horizontal={false} />
+              <XAxis
+                type="number"
+                tickFormatter={formatCurrency}
+                tick={{ fill: 'var(--text-secondary)', fontSize: 11 }}
+              />
+              <YAxis
+                type="category"
+                dataKey={labelKey}
+                tick={{ fill: 'var(--text-secondary)', fontSize: 11 }}
+                tickFormatter={(v) => truncateLabel(v, 28)}
+                width={140}
+              />
+              <Tooltip content={<CustomTooltip />} />
+              {valueKeys.length > 1 && <Legend />}
+              {valueKeys.map((vk, i) => (
+                <Bar key={vk} dataKey={vk} fill={COLORS[i % COLORS.length]} radius={[0, 4, 4, 0]} />
+              ))}
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+
+        {activeType === 'line' && (
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={data} margin={{ top: 10, right: 20, left: 10, bottom: 60 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
+              <XAxis
+                dataKey={labelKey}
+                angle={-35}
+                textAnchor="end"
+                tick={{ fill: 'var(--text-secondary)', fontSize: 11 }}
+                tickFormatter={(v) => truncateLabel(v, 25)}
+                interval={0}
+                height={80}
+              />
+              <YAxis
+                tickFormatter={formatCurrency}
+                tick={{ fill: 'var(--text-secondary)', fontSize: 11 }}
+                width={65}
+              />
+              <Tooltip content={<CustomTooltip />} />
+              {valueKeys.length > 1 && <Legend />}
+              {valueKeys.map((vk, i) => (
+                <Line
+                  key={vk}
+                  type="monotone"
+                  dataKey={vk}
+                  stroke={COLORS[i % COLORS.length]}
+                  strokeWidth={2}
+                  dot={{ r: 3 }}
+                  activeDot={{ r: 5 }}
+                />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        )}
+
+        {activeType === 'area' && (
+          <ResponsiveContainer width="100%" height={300}>
+            <AreaChart data={data} margin={{ top: 10, right: 20, left: 10, bottom: 60 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
+              <XAxis
+                dataKey={labelKey}
+                angle={-35}
+                textAnchor="end"
+                tick={{ fill: 'var(--text-secondary)', fontSize: 11 }}
+                tickFormatter={(v) => truncateLabel(v, 25)}
+                interval={0}
+                height={80}
+              />
+              <YAxis
+                tickFormatter={formatCurrency}
+                tick={{ fill: 'var(--text-secondary)', fontSize: 11 }}
+                width={65}
+              />
+              <Tooltip content={<CustomTooltip />} />
+              {valueKeys.length > 1 && <Legend />}
+              {valueKeys.map((vk, i) => (
+                <Area
+                  key={vk}
+                  type="monotone"
+                  dataKey={vk}
+                  stroke={COLORS[i % COLORS.length]}
+                  fill={COLORS[i % COLORS.length]}
+                  fillOpacity={0.15}
+                  strokeWidth={2}
+                />
+              ))}
+            </AreaChart>
+          </ResponsiveContainer>
+        )}
+
+        {activeType === 'pie' && (
           <ResponsiveContainer width="100%" height={pieHeight}>
             <PieChart>
               <Pie
@@ -240,6 +444,40 @@ export default function ChartView({ chartData }) {
                 nameKey={labelKey}
                 cx="50%"
                 cy="40%"
+                outerRadius={Math.min(110, 90 + Math.max(0, 8 - data.length) * 3)}
+                labelLine
+                label={PieLabel}
+              >
+                {data.map((_, i) => (
+                  <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip content={<CustomTooltip />} />
+              <Legend
+                layout="horizontal"
+                verticalAlign="bottom"
+                align="center"
+                wrapperStyle={{ paddingTop: '16px', fontSize: '12px', lineHeight: '1.8' }}
+                formatter={(value) => (
+                  <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
+                    {truncateLabel(value, 40)}
+                  </span>
+                )}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+        )}
+
+        {activeType === 'donut' && (
+          <ResponsiveContainer width="100%" height={pieHeight}>
+            <PieChart>
+              <Pie
+                data={data}
+                dataKey={primaryValue}
+                nameKey={labelKey}
+                cx="50%"
+                cy="40%"
+                innerRadius={55}
                 outerRadius={Math.min(110, 90 + Math.max(0, 8 - data.length) * 3)}
                 labelLine
                 label={PieLabel}

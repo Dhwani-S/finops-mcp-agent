@@ -109,6 +109,92 @@
   margin-top: 0.15rem;
 }
 
+/* ── Animated steps (live mode) ── */
+.reasoning-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.reasoning-step {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0.3rem;
+  border-radius: 5px;
+  font-size: 0.73rem;
+  color: var(--text-muted);
+  animation: step-slide-in 0.25s ease-out both;
+}
+
+@keyframes step-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.reasoning-step--done {
+  color: var(--text-secondary);
+}
+
+.reasoning-step--active {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.reasoning-step-icon {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  display: grid;
+  place-items: center;
+}
+
+.reasoning-step-icon svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* Icon inherits color from parent step */
+.reasoning-step--done.reasoning-step--thinking .reasoning-step-icon svg {
+  color: #a78bfa;
+}
+.reasoning-step--done.reasoning-step--tool_call .reasoning-step-icon svg {
+  color: #f59e0b;
+}
+.reasoning-step--done.reasoning-step--result .reasoning-step-icon svg {
+  color: var(--success, #34d399);
+}
+
+.reasoning-step--active .reasoning-step-icon svg {
+  color: var(--accent);
+}
+
+.reasoning-step-pulse {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: step-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes step-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.7); }
+}
+
+.reasoning-step-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* Make nested tool events even more compact when inside reasoning */
 .reasoning-details .tool-event {
   padding: 0.18rem 0.3rem;

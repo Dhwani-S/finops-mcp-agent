@@ -3,6 +3,8 @@ import ChatInput from './components/ChatInput'
 import MessageList from './components/MessageList'
 import StatusBar from './components/StatusBar'
 import LeftRail from './components/LeftRail'
+import ScopeSelector from './components/ScopeSelector'
+import ScopeManager from './components/ScopeManager'
 import {
   loadPersisted,
   savePersisted,
@@ -10,6 +12,13 @@ import {
   titleFromMessages,
   THEME_STORAGE_KEY,
 } from './lib/chatSessions'
+import {
+  loadScopes,
+  saveScopes,
+  getActiveScope,
+  setActiveScope as persistActiveScope,
+  scopeToContext,
+} from './lib/scopes'
 import './App.css'
 
 function App() {
@@ -22,6 +31,9 @@ function App() {
   const [activeSessionId, setActiveSessionId] = useState(() => persisted.current.activeSessionId)
   const [isLoading, setIsLoading] = useState(false)
   const [outputPrefs, setOutputPrefs] = useState({ charts: false, csv: false, excel: false })
+  const [scopes, setScopes] = useState(() => loadScopes())
+  const [activeScopeId, setActiveScopeId] = useState(() => getActiveScope())
+  const [scopeManagerOpen, setScopeManagerOpen] = useState(false)
   const [status, setStatus] = useState(null)
   const [statusUpdatedAt, setStatusUpdatedAt] = useState(null)
   const [theme, setTheme] = useState(() => {
@@ -111,6 +123,9 @@ function App() {
         case 'text':
           msg.content = data.content
           break
+        case 'elicitation':
+          msg.elicitation = data
+          break
         case 'error':
           msg.content = `Error: ${data.message}`
           msg.loading = false
@@ -124,8 +139,37 @@ function App() {
     })
   }
 
+  // ── Scope handlers ──
+  const handleScopeSelect = (id) => {
+    setActiveScopeId(id)
+    persistActiveScope(id)
+  }
+
+  const handleScopeSave = (scope) => {
+    setScopes((prev) => {
+      const exists = prev.find((s) => s.id === scope.id)
+      const next = exists ? prev.map((s) => (s.id === scope.id ? scope : s)) : [...prev, scope]
+      saveScopes(next)
+      return next
+    })
+  }
+
+  const handleScopeDelete = (id) => {
+    setScopes((prev) => {
+      const next = prev.filter((s) => s.id !== id)
+      saveScopes(next)
+      return next
+    })
+    if (activeScopeId === id) handleScopeSelect(null)
+  }
+
   const handleSend = async (text) => {
     if (!text.trim() || isLoading) return
+
+    // Build message with scope context
+    const activeScope = scopes.find((s) => s.id === activeScopeId)
+    const scopeCtx = scopeToContext(activeScope)
+    const messageForApi = scopeCtx ? `${scopeCtx}\n\n${text}` : text
 
     const userMsg = { role: 'user', content: text }
     const agentMsg = { role: 'agent', content: '', events: [], loading: true }
@@ -137,7 +181,7 @@ function App() {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({ message: messageForApi }),
         signal: abortRef.current.signal,
       })
 
@@ -326,10 +370,28 @@ function App() {
               outputPrefs={outputPrefs}
               onOutputPrefsChange={setOutputPrefs}
               messages={messages}
+              scopeSelector={
+                <ScopeSelector
+                  scopes={scopes}
+                  activeScopeId={activeScopeId}
+                  onSelect={handleScopeSelect}
+                  onManage={() => setScopeManagerOpen(true)}
+                />
+              }
             />
           </footer>
         </div>
       </div>
+      {scopeManagerOpen && (
+        <div className="scope-overlay" onClick={(e) => { if (e.target === e.currentTarget) setScopeManagerOpen(false) }}>
+          <ScopeManager
+            scopes={scopes}
+            onSave={handleScopeSave}
+            onDelete={handleScopeDelete}
+            onClose={() => setScopeManagerOpen(false)}
+          />
+        </div>
+      )}
     </div>
   )
 }

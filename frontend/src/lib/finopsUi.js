@@ -100,6 +100,6 @@ export function humanizeThinkingMessage(message) {
   if (/Understanding your question/i.test(message)) return 'Understanding your question…'
   if (/Processing your query/i.test(message)) return 'Working on your question…'
   const m = message.match(/Analyzing results \(round (\d+)\)/i)
-  if (m) return `Reviewing what we found (step ${m[1]})…`
+  if (m) return 'Reviewing what we found…'
   return message
 }

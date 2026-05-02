@@ -1,48 +1,86 @@
 .chat-input-wrap {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  gap: 0.36rem;
 }
 
-/* ── Active output preferences chips ── */
+/* Context sits above the composer so scope is not confused with output actions. */
+.chat-context-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  padding: 0 0.2rem;
+  flex-wrap: wrap;
+}
+
+.chat-context-group {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  gap: 0.42rem;
+}
+
+.chat-context-group--scope {
+  padding: 0.12rem 0.18rem 0.12rem 0;
+}
+
+.chat-context-group--output {
+  margin-left: auto;
+}
+
+.chat-context-label {
+  color: var(--text-muted);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.chat-output-empty {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+
 .chat-prefs-bar {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.35rem;
-  padding: 0 0.15rem;
+  gap: 0.3rem;
 }
 
 .chat-pref-chip {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
-  padding: 0.22rem 0.55rem 0.22rem 0.4rem;
-  font-size: 0.7rem;
+  gap: 0.2rem;
+  padding: 0.16rem 0.48rem 0.16rem 0.36rem;
+  font-size: 0.66rem;
   font-weight: 600;
   font-family: inherit;
   color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, transparent);
   border-radius: 999px;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition: background 0.12s, border-color 0.12s;
   user-select: none;
 }
 
 .chat-pref-chip:hover {
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
 }
 
 .chat-pref-chip svg {
   flex-shrink: 0;
+  width: 11px;
+  height: 11px;
 }
 
 .chip-x {
-  font-size: 0.85rem;
+  font-size: 0.72rem;
   line-height: 1;
-  margin-left: 0.15rem;
-  opacity: 0.6;
+  margin-left: 0.1rem;
+  opacity: 0.5;
 }
 
 .chat-pref-chip:hover .chip-x {
@@ -166,7 +204,7 @@
 
 .chat-input-field {
   flex: 1;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   background: var(--bg-input);
   border: 1px solid var(--border-subtle);
   box-shadow: inset 0 1px 0 color-mix(in srgb, white 4%, transparent);
@@ -183,18 +221,18 @@
 .chat-input textarea {
   display: block;
   width: 100%;
-  padding: 0.58rem 0.85rem;
+  padding: 0.62rem 0.85rem;
   background: transparent;
   color: var(--text-primary);
   border: none;
-  border-radius: var(--radius-md);
-  font-size: 0.86rem;
+  border-radius: var(--radius-lg);
+  font-size: 0.88rem;
   font-family: inherit;
   resize: none;
   outline: none;
-  min-height: 36px;
-  max-height: 8rem;
-  line-height: 1.45;
+  min-height: 40px;
+  max-height: 7rem;
+  line-height: 1.4;
   overflow-y: hidden;
   scrollbar-width: thin;
   scrollbar-color: color-mix(in srgb, var(--text-muted) 40%, transparent) transparent;
@@ -226,12 +264,13 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.4rem;
-  padding: 0 0.85rem;
-  min-width: 4.45rem;
+  padding: 0;
+  width: 2.5rem;
+  min-width: 2.5rem;
+  height: 2.5rem;
   border: none;
-  border-radius: var(--radius-md);
-  font-size: 0.82rem;
+  border-radius: var(--radius-lg);
+  font-size: 0.72rem;
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
@@ -271,9 +310,9 @@
 .send-arrow {
   width: 0;
   height: 0;
-  border-left: 4px solid currentColor;
-  border-top: 3px solid transparent;
-  border-bottom: 3px solid transparent;
+  border-left: 5px solid currentColor;
+  border-top: 3.5px solid transparent;
+  border-bottom: 3.5px solid transparent;
   opacity: 0.95;
 }
 
@@ -285,18 +324,75 @@
 }
 
 .chat-input-hint {
-  font-size: 0.68rem;
+  font-size: 0.66rem;
   color: var(--text-muted);
-  padding-left: 0.15rem;
-  line-height: 1.2;
+  padding-left: 0.1rem;
+  line-height: 1;
+}
+
+.chat-footer-hint {
+  display: flex;
+  align-items: center;
+  min-height: 1.1rem;
+  padding: 0 0.2rem;
 }
 
 .chat-input-hint kbd {
   font-family: var(--font-mono);
-  font-size: 0.61rem;
-  padding: 0.06rem 0.28rem;
-  border-radius: 4px;
+  font-size: 0.55rem;
+  padding: 0.04rem 0.22rem;
+  border-radius: 3px;
   background: var(--bg-elevated);
   border: 1px solid var(--border-subtle);
   color: var(--text-secondary);
+}
+
+/* ── Autocomplete dropdown ── */
+.chat-input-field {
+  position: relative;
+}
+
+.autocomplete-dropdown {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 15rem;
+  overflow-y: auto;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 16px color-mix(in srgb, black 12%, transparent);
+  z-index: 200;
+  padding: 0.25rem;
+  animation: menu-pop 0.1s ease-out;
+}
+
+.autocomplete-item {
+  display: block;
+  width: 100%;
+  padding: 0.42rem 0.65rem;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+  line-height: 1.4;
+}
+
+.autocomplete-item:hover,
+.autocomplete-item.selected {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--text-primary);
+}
+
+.autocomplete-highlight {
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+  color: var(--accent);
+  border-radius: 2px;
+  padding: 0 1px;
 }

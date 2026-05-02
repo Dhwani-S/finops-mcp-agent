@@ -1,4 +1,5 @@
 ﻿import { useState, useRef, useEffect } from 'react'
+import Autocomplete, { fuzzyMatch, SUGGESTIONS } from './Autocomplete'
 import './ChatInput.css'
 
 function Icon({ name, size = 16 }) {
@@ -59,9 +60,12 @@ export default function ChatInput({
   outputPrefs,
   onOutputPrefsChange,
   messages,
+  scopeSelector,
 }) {
   const [text, setText] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
+  const [acVisible, setAcVisible] = useState(true) // autocomplete visibility
+  const [acIdx, setAcIdx] = useState(0)
   const inputRef = useRef(null)
   const menuRef = useRef(null)
 
@@ -105,6 +109,34 @@ export default function ChatInput({
   }
 
   const handleKeyDown = (e) => {
+    // Compute current autocomplete matches
+    const acMatches = acVisible && text.length >= 2
+      ? SUGGESTIONS.filter((s) => fuzzyMatch(text, s)).slice(0, 7)
+      : []
+
+    if (acMatches.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setAcIdx((i) => (i + 1) % acMatches.length)
+        return
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setAcIdx((i) => (i - 1 + acMatches.length) % acMatches.length)
+        return
+      }
+      if (e.key === 'Tab') {
+        e.preventDefault()
+        setText(acMatches[acIdx])
+        setAcVisible(false)
+        return
+      }
+      if (e.key === 'Escape') {
+        setAcVisible(false)
+        return
+      }
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSubmit(e)
@@ -226,37 +258,59 @@ ${xmlRows}
 
   return (
     <div className="chat-input-wrap">
-      {/* ── Active preferences chips ── */}
-      {hasAnyPref && (
-        <div className="chat-prefs-bar">
-          {outputPrefs.charts && (
-            <span className="chat-pref-chip" onClick={() => togglePref('charts')}>
-              <Icon name="chart" size={12} /> Charts <span className="chip-x">×</span>
-            </span>
-          )}
-          {outputPrefs.csv && (
-            <span className="chat-pref-chip" onClick={() => togglePref('csv')}>
-              <Icon name="csv" size={12} /> CSV <span className="chip-x">×</span>
-            </span>
-          )}
-          {outputPrefs.excel && (
-            <span className="chat-pref-chip" onClick={() => togglePref('excel')}>
-              <Icon name="excel" size={12} /> Excel <span className="chip-x">×</span>
-            </span>
+      <div className="chat-context-row">
+        <div className="chat-context-group chat-context-group--scope">
+          <span className="chat-context-label">Scope</span>
+          {scopeSelector}
+        </div>
+
+        <div className="chat-context-group chat-context-group--output">
+          <span className="chat-context-label">Output</span>
+          {hasAnyPref ? (
+            <div className="chat-prefs-bar">
+              {outputPrefs.charts && (
+                <button type="button" className="chat-pref-chip" onClick={() => togglePref('charts')}>
+                  <Icon name="chart" size={10} /> Charts <span className="chip-x">×</span>
+                </button>
+              )}
+              {outputPrefs.csv && (
+                <button type="button" className="chat-pref-chip" onClick={() => togglePref('csv')}>
+                  <Icon name="csv" size={10} /> CSV <span className="chip-x">×</span>
+                </button>
+              )}
+              {outputPrefs.excel && (
+                <button type="button" className="chat-pref-chip" onClick={() => togglePref('excel')}>
+                  <Icon name="excel" size={10} /> Excel <span className="chip-x">×</span>
+                </button>
+              )}
+            </div>
+          ) : (
+            <span className="chat-output-empty">Default</span>
           )}
         </div>
-      )}
+      </div>
+
       <form className="chat-input" onSubmit={handleSubmit}>
         <div className="chat-input-field">
           <textarea
             ref={inputRef}
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => { setText(e.target.value); setAcVisible(true) }}
             onKeyDown={handleKeyDown}
             placeholder="Ask a question... (Shift+Enter for new line)"
             rows={1}
             disabled={isLoading}
             aria-label="Your question"
+            autoComplete="off"
+          />
+          <Autocomplete
+            query={text}
+            visible={acVisible && !isLoading}
+            onSelect={(suggestion) => {
+              setText(suggestion)
+              setAcVisible(false)
+              inputRef.current?.focus()
+            }}
           />
         </div>
 
@@ -309,20 +363,20 @@ ${xmlRows}
         </div>
 
         {isLoading ? (
-          <button type="button" className="chat-input-btn chat-input-btn--stop" onClick={onStop}>
+          <button type="button" className="chat-input-btn chat-input-btn--stop" onClick={onStop} title="Stop">
             <span className="chat-input-btn-icon stop-square" aria-hidden="true" />
-            Stop
           </button>
         ) : (
-          <button type="submit" className="chat-input-btn chat-input-btn--send" disabled={!text.trim()}>
-            Ask
+          <button type="submit" className="chat-input-btn chat-input-btn--send" disabled={!text.trim()} title="Send">
             <span className="chat-input-btn-icon send-arrow" aria-hidden="true" />
           </button>
         )}
       </form>
-      <p className="chat-input-hint">
-        <kbd>Enter</kbd> to send · <kbd>Shift</kbd>+<kbd>Enter</kbd> new line
-      </p>
+      <div className="chat-footer-hint">
+        <p className="chat-input-hint">
+          <kbd>Enter</kbd> send · <kbd>Shift+Enter</kbd> newline
+        </p>
+      </div>
     </div>
   )
 }

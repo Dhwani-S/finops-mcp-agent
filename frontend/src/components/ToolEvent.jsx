@@ -56,7 +56,7 @@ export default function ToolEvent({ event }) {
   if (event.type === 'thinking') {
     return (
       <div className="tool-event tool-event--thinking" role="status">
-        <span className="tool-event-icon-wrap" aria-hidden="true">
+        <span className="tool-event-icon-wrap tool-event-icon-wrap--thinking" aria-hidden="true">
           <IconThinking />
         </span>
         <span className="tool-event-text">{humanizeThinkingMessage(event.message)}</span>

@@ -1,0 +1,121 @@
+.scope-selector {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+}
+
+.scope-selector-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.36rem;
+  padding: 0.22rem 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--bg-card) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-muted) 16%, transparent);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.scope-selector-trigger:hover {
+  border-color: color-mix(in srgb, var(--accent-2) 38%, transparent);
+  color: var(--text-primary);
+}
+
+.scope-selector-trigger.has-scope {
+  color: color-mix(in srgb, var(--accent-2) 75%, var(--text-primary));
+  background: color-mix(in srgb, var(--accent-2) 8%, transparent);
+  border-color: color-mix(in srgb, var(--accent-2) 34%, transparent);
+}
+
+.scope-selector-icon {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+}
+
+.scope-selector-label {
+  max-width: 9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scope-selector-caret {
+  flex-shrink: 0;
+  opacity: 0.5;
+  width: 9px;
+  height: 9px;
+}
+
+.scope-selector-dropdown {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  min-width: 14rem;
+  max-height: 16rem;
+  overflow-y: auto;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  box-shadow: 0 8px 22px color-mix(in srgb, black 13%, transparent);
+  padding: 0.3rem;
+  z-index: 200;
+  animation: scope-pop 0.12s ease-out;
+}
+
+@keyframes scope-pop {
+  from { opacity: 0; transform: translateY(4px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.scope-selector-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.74rem;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.scope-selector-option:hover {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.scope-selector-option.active {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+}
+
+.scope-option-name {
+  font-weight: 600;
+  font-size: 0.74rem;
+}
+
+.scope-option-desc {
+  font-size: 0.66rem;
+  color: var(--text-muted);
+  margin-top: 1px;
+}
+
+.scope-selector-divider {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: 0.25rem 0.4rem;
+}
+
+.scope-selector-manage .scope-option-name {
+  color: var(--text-muted);
+  font-weight: 500;
+}

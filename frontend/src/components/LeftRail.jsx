@@ -2,6 +2,7 @@ import './LeftRail.css'
 import ThemeToggle from './ThemeToggle'
 import { CONNECTED_SERVICE_LABELS, serviceLabelForServerKey } from '../lib/finopsUi'
 import { formatSessionTime } from '../lib/chatSessions'
+import { detectTag } from '../lib/conversationTags'
 
 const SERVER_ORDER = ['bq', 'sql', 'analytics', 'file']
 
@@ -81,7 +82,10 @@ export default function LeftRail({
         </div>
         <nav className="left-rail-session-scroll" aria-label="Chat history">
           <ul className="left-rail-session-list">
-            {sessions.map((s) => (
+            {sessions.map((s) => {
+              const firstUserMsg = s.messages?.find((m) => m.role === 'user')
+              const tagInfo = detectTag(firstUserMsg?.content)
+              return (
               <li key={s.id}>
                 <div
                   className={`left-rail-session ${s.id === activeSessionId ? 'is-active' : ''}`}
@@ -93,8 +97,14 @@ export default function LeftRail({
                     onClick={() => onSelectSession(s.id)}
                     aria-current={s.id === activeSessionId ? 'true' : undefined}
                   >
-                    <span className="left-rail-session-title">{s.title || 'New conversation'}</span>
+                    <span className="left-rail-session-title-row">
+                      {tagInfo && (
+                        <span className="left-rail-session-tag" style={{ background: tagInfo.color }} title={tagInfo.tag} />
+                      )}
+                      <span className="left-rail-session-title">{s.title || 'New conversation'}</span>
+                    </span>
                     <span className="left-rail-session-meta">
+                      {tagInfo && <span className="left-rail-tag-label">{tagInfo.tag}</span>}
                       {formatSessionTime(s.updatedAt)}
                       {s.messages?.length ? ` · ${s.messages.length} msgs` : ''}
                     </span>
@@ -113,7 +123,8 @@ export default function LeftRail({
                   </button>
                 </div>
               </li>
-            ))}
+              )
+            })}
           </ul>
         </nav>
       </div>
