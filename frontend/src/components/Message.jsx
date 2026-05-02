@@ -244,6 +244,70 @@ function CollapsibleTable({ children, ...props }) {
   )
 }
 
+function OptionChips({ options, onOptionClick, disabled }) {
+  const [selected, setSelected] = useState(new Set())
+
+  const allSelected = selected.size === options.length
+  const anySelected = selected.size > 0
+
+  function toggle(label) {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(label)) next.delete(label)
+      else next.add(label)
+      return next
+    })
+  }
+
+  function toggleAll() {
+    if (allSelected) setSelected(new Set())
+    else setSelected(new Set(options.map((o) => o.label)))
+  }
+
+  function handleSend() {
+    if (!anySelected) return
+    const labels = options.filter((o) => selected.has(o.label)).map((o) => o.label)
+    onOptionClick?.(labels.join(', '))
+  }
+
+  return (
+    <div className="message-options" role="group" aria-label="Choose options">
+      {options.length >= 3 && (
+        <button
+          type="button"
+          className={`message-option-chip message-option-chip--all ${allSelected ? 'selected' : ''}`}
+          disabled={disabled}
+          onClick={toggleAll}
+        >
+          All
+        </button>
+      )}
+      {options.map((opt) => (
+        <button
+          key={opt.num}
+          type="button"
+          className={`message-option-chip ${selected.has(opt.label) ? 'selected' : ''}`}
+          disabled={disabled}
+          onClick={() => toggle(opt.label)}
+        >
+          <span className="message-option-num">{opt.num}</span>
+          {opt.label}
+        </button>
+      ))}
+      {anySelected && (
+        <button
+          type="button"
+          className="message-option-send"
+          disabled={disabled}
+          onClick={handleSend}
+        >
+          Send{selected.size > 1 ? ` (${selected.size})` : ''}
+        </button>
+      )}
+    </div>
+  )
+}
+
 export default function Message({ message, onOptionClick, disabled, chartMode }) {
   const { role, content, events, loading } = message
   const [showChart, setShowChart] = useState(false)
@@ -303,20 +367,7 @@ export default function Message({ message, onOptionClick, disabled, chartMode })
         </div>
       )}
       {options.length > 0 && (
-        <div className="message-options" role="group" aria-label="Choose an option">
-          {options.map((opt) => (
-            <button
-              key={opt.num}
-              type="button"
-              className="message-option-chip"
-              disabled={disabled}
-              onClick={() => onOptionClick?.(opt.label)}
-            >
-              <span className="message-option-num">{opt.num}</span>
-              {opt.label}
-            </button>
-          ))}
-        </div>
+        <OptionChips options={options} onOptionClick={onOptionClick} disabled={disabled} />
       )}
       {hasCharts && !chartMode && (
         <div className="chart-toggle-bar">

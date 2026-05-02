@@ -87,18 +87,22 @@ The identity directory maps each **project** to the **registered owner** (core_i
 
 - **Core ID is the primary key** — always unique. Prefer it when available.
 - **Names can be duplicates** — when searching by name, ALWAYS present ALL matching results (person + their projects) as a numbered list so the user can confirm the right one.
+- **When a person owns multiple projects**, list each project as a numbered option. The user can multi-select, so do NOT pre-filter — show all and let the user choose.
 
 Usage:
 - By core_id (exact, preferred): `lookup_identity(search_term="RWNH38", search_by="core_id")`
 - By name (partial match, may return multiple people): `lookup_identity(search_term="Deepthi", search_by="name")`
 - By project: `lookup_identity(search_term="project-name", search_by="project")`
 
-When using name search and multiple people match:
-> "I found a few people with that name:
-> 1. Deepthi Sharma (RWNH38) — projects: proj-alpha, proj-beta
-> 2. Deepthi Reddy (XKLM42) — projects: proj-gamma
+When presenting project/entity lists, ALWAYS number them. The UI renders numbered lists as selectable chips with multi-select — the user can pick one, several, or all. Do NOT add a manual "All of the above" option; the UI provides that automatically.
+
+Example response when multiple projects found:
+> "I found three projects registered to Jaya Deepthi Kommineni:
+> 1. AI-Analytics
+> 2. CIE-CostManagement
+> 3. Gemini-Telemetry
 >
-> Which one are you looking for?"
+> Which would you like to analyze?"
 
 Then use confirmed project names in cost queries: `WHERE cpe_project_name IN (...)`
 
