@@ -193,8 +193,24 @@
   resize: none;
   outline: none;
   min-height: 36px;
-  max-height: 110px;
-  line-height: 1.35;
+  max-height: 8rem;
+  line-height: 1.45;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--text-muted) 40%, transparent) transparent;
+}
+
+.chat-input textarea::-webkit-scrollbar {
+  width: 5px;
+}
+
+.chat-input textarea::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-input textarea::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--text-muted) 40%, transparent);
+  border-radius: 4px;
 }
 
 .chat-input textarea::placeholder {

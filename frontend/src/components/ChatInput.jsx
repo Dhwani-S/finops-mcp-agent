@@ -79,11 +79,25 @@ export default function ChatInput({
     return () => document.removeEventListener('mousedown', handler)
   }, [menuOpen])
 
+  /* Auto-resize textarea to fit content up to max-height */
+  const autoResize = () => {
+    const el = inputRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = el.scrollHeight + 'px'
+  }
+
+  useEffect(() => {
+    autoResize()
+  }, [text])
+
   const handleSubmit = (e) => {
     e.preventDefault()
     if (text.trim() && !isLoading) {
       onSend(text)
       setText('')
+      // Reset height after send
+      if (inputRef.current) inputRef.current.style.height = 'auto'
     }
   }
 
