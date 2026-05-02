@@ -300,8 +300,9 @@ function OptionChips({ options, onOptionClick, disabled }) {
           className="message-option-send"
           disabled={disabled}
           onClick={handleSend}
+          title="Confirm selection"
         >
-          Send{selected.size > 1 ? ` (${selected.size})` : ''}
+          Done ✓
         </button>
       )}
     </div>
