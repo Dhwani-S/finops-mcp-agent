@@ -137,6 +137,61 @@ def _validate_sql(sql: str) -> str | None:
     return None
 
 
+# Columns that indicate the query is scoped to a specific team/project/owner
+_SCOPE_FILTERS = re.compile(
+    r"\b(cpe_project_name|gcp_project_name|project_id|project_name"
+    r"|linked_account_id|linked_account_name"
+    r"|subscription_name|subscription_id|resource_group"
+    r"|owner|team|business_unit|environment|core_id)\b",
+    re.IGNORECASE,
+)
+
+# Patterns that indicate the query aggregates cost data
+_COST_AGGREGATION = re.compile(
+    r"\b(SUM|AVG|TOTAL)\s*\("
+    r"|\b(total_cost|azure_cost|cost_with_credits|cost|total_spend)\b",
+    re.IGNORECASE,
+)
+
+
+def _check_scope(sql: str) -> str | None:
+    """Reject aggregate cost queries that have no scope filter.
+
+    Returns an error message if the query looks like an unscoped org-wide
+    cost aggregation. Returns None if the query is fine.
+    """
+    clean = sql.strip()
+
+    # Only enforce on queries that aggregate cost columns
+    if not _COST_AGGREGATION.search(clean):
+        return None  # not a cost aggregation — allow
+
+    # Check if there's a scope filter in the WHERE clause
+    where_match = re.search(r"\bWHERE\b(.+)", clean, re.IGNORECASE | re.DOTALL)
+    if where_match:
+        where_clause = where_match.group(1)
+        if _SCOPE_FILTERS.search(where_clause):
+            return None  # has a scope filter — allow
+
+    # Check if scope column is in GROUP BY (e.g. "GROUP BY cpe_project_name")
+    group_match = re.search(r"\bGROUP\s+BY\b(.+?)(?:ORDER|LIMIT|HAVING|$)", clean, re.IGNORECASE | re.DOTALL)
+    if group_match:
+        group_clause = group_match.group(1)
+        if _SCOPE_FILTERS.search(group_clause):
+            return None  # grouped by scope — allow
+
+    return (
+        "SCOPE REQUIRED: This query aggregates cost data across the entire organization "
+        "without filtering by project, team, or owner. Before running this query, "
+        "ask the user which scope they want:\n"
+        "1. Organization-wide (confirm explicitly)\n"
+        "2. A specific project (use cpe_project_name or gcp_project_name)\n"
+        "3. A specific team or owner (use bq_list_dimension_values to find the value)\n\n"
+        "Add a WHERE clause with the appropriate scope filter, or get explicit "
+        "user confirmation for org-wide data."
+    )
+
+
 def _serialize_row(row: dict) -> dict:
     """Convert BQ row values to JSON-serializable types."""
     out = {}
@@ -304,6 +359,12 @@ def run_bq_query(sql: str) -> str:
     if error:
         logger.warning("SQL validation failed: %s", error)
         return f"Error: {error}"
+
+    # Scope enforcement — reject unscoped org-wide cost aggregations
+    scope_error = _check_scope(sql)
+    if scope_error:
+        logger.warning("Scope check failed for query")
+        return f"Error: {scope_error}"
 
     try:
         from google.cloud import bigquery as bq

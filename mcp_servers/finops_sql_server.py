@@ -133,6 +133,52 @@ def _validate_sql(sql: str) -> str | None:
     return None
 
 
+# Columns that indicate the query is scoped to a specific team/project/owner
+_SCOPE_FILTERS_SQL = re.compile(
+    r"\b(project_name|subscription_name|subscription_id|resource_group"
+    r"|owner|team|business_unit|environment|core_id|user_name"
+    r"|linked_account_id|linked_account_name)\b",
+    re.IGNORECASE,
+)
+
+# Patterns that indicate the query aggregates cost data
+_COST_AGGREGATION_SQL = re.compile(
+    r"\b(SUM|AVG|TOTAL)\s*\("
+    r"|\b(total_cost|estimated_monthly_savings|cost|savings|amount)\b",
+    re.IGNORECASE,
+)
+
+
+def _check_scope_sql(sql: str) -> str | None:
+    """Reject aggregate cost/savings queries that have no scope filter."""
+    clean = sql.strip()
+
+    if not _COST_AGGREGATION_SQL.search(clean):
+        return None
+
+    where_match = re.search(r"\bWHERE\b(.+)", clean, re.IGNORECASE | re.DOTALL)
+    if where_match:
+        where_clause = where_match.group(1)
+        if _SCOPE_FILTERS_SQL.search(where_clause):
+            return None
+
+    group_match = re.search(r"\bGROUP\s+BY\b(.+?)(?:ORDER|HAVING|$)", clean, re.IGNORECASE | re.DOTALL)
+    if group_match:
+        group_clause = group_match.group(1)
+        if _SCOPE_FILTERS_SQL.search(group_clause):
+            return None
+
+    return (
+        "SCOPE REQUIRED: This query aggregates cost/savings data across the entire organization "
+        "without filtering by project, team, or owner. Ask the user which scope they want:\n"
+        "1. Organization-wide (confirm explicitly)\n"
+        "2. A specific project or subscription\n"
+        "3. A specific team or owner\n\n"
+        "Add a WHERE clause with the appropriate scope filter, or get explicit "
+        "user confirmation for org-wide data."
+    )
+
+
 def _serialize_value(value):
     """Convert SQL Server value to JSON-serializable type."""
     if isinstance(value, decimal.Decimal):
@@ -275,6 +321,12 @@ def run_sql_query(sql: str) -> str:
     if error:
         logger.warning("SQL validation failed: %s", error)
         return f"Error: {error}"
+
+    # Scope enforcement — reject unscoped org-wide cost aggregations
+    scope_error = _check_scope_sql(sql)
+    if scope_error:
+        logger.warning("Scope check failed for query")
+        return f"Error: {scope_error}"
 
     try:
         cursor = conn.cursor(as_dict=True)
