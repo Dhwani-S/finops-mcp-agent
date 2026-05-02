@@ -211,12 +211,12 @@ function CollapsibleTable({ children, ...props }) {
         {thead}
         <tbody>{visibleRows}</tbody>
       </table>
-      {needsTruncation && (
-        <div className="table-overflow-bar">
-          <span className="table-overflow-count">
-            Showing {expanded ? total : TABLE_PREVIEW_ROWS} of {total} rows
-          </span>
-          <div className="table-overflow-actions">
+      <div className="table-overflow-bar">
+        {needsTruncation && (
+          <>
+            <span className="table-overflow-count">
+              Showing {expanded ? total : TABLE_PREVIEW_ROWS} of {total} rows
+            </span>
             <button
               type="button"
               className="table-overflow-btn"
@@ -224,22 +224,22 @@ function CollapsibleTable({ children, ...props }) {
             >
               {expanded ? 'Show less' : `Show all ${total} rows`}
             </button>
-            <button
-              type="button"
-              className="table-overflow-btn table-overflow-btn--download"
-              onClick={() => downloadTableCSV(thead, allRows)}
-              title="Download as CSV"
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>
-              CSV
-            </button>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+        <button
+          type="button"
+          className="table-overflow-btn table-overflow-btn--download"
+          onClick={() => downloadTableCSV(thead, allRows)}
+          title="Download as CSV"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          CSV
+        </button>
+      </div>
     </>
   )
 }
