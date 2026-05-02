@@ -120,8 +120,11 @@ def _validate_sql(sql: str) -> str | None:
     if not re.match(r"^(SELECT|WITH)\s", clean, re.IGNORECASE):
         return "Only SELECT/WITH statements are permitted."
 
+    # Strip string literals before keyword check so values like 'Delete' don't trigger
+    no_strings = re.sub(r"'[^']*'", "''", clean)
+
     # Reject DML/DDL keywords anywhere in query
-    match = _BLOCKED_KEYWORDS.search(clean)
+    match = _BLOCKED_KEYWORDS.search(no_strings)
     if match:
         return f"Blocked keyword detected: {match.group(0).upper()}"
 
