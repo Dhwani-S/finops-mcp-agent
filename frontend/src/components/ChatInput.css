@@ -4,44 +4,139 @@
   gap: 0.45rem;
 }
 
-/* Tools bar — above the input */
-.chat-input-tools {
-  display: flex;
-  gap: 0.4rem;
-  padding-left: 0.15rem;
-}
-
-.chat-tool-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.3rem 0.7rem;
-  border-radius: 16px;
-  border: 1px solid var(--border-subtle);
-  background: var(--bg-elevated);
-  color: var(--text-muted);
-  font-size: 0.78rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
-}
-
-.chat-tool-btn:hover {
-  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
-  color: var(--text-secondary);
-}
-
-.chat-tool-btn.active {
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-  border-color: var(--accent);
-  color: var(--accent);
-  font-weight: 600;
-}
-
 .chat-input {
   display: flex;
   gap: 0.65rem;
   align-items: stretch;
+}
+
+/* ── Options menu (vertical dots) ── */
+.chat-input-menu-wrap {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+
+.chat-input-btn--menu {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.chat-input-btn--menu:hover,
+.chat-input-btn--menu.open {
+  color: var(--text-secondary);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.chat-input-btn--menu.has-active {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.chat-input-menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  min-width: 11rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  padding: 0.3rem;
+  z-index: 100;
+  animation: menu-pop 0.12s ease-out;
+}
+
+@keyframes menu-pop {
+  from { opacity: 0; transform: translateY(4px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.chat-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 0.65rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.chat-menu-item:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--text-primary);
+}
+
+.chat-menu-item.active {
+  color: var(--accent);
+}
+
+.chat-menu-icon {
+  font-size: 0.92rem;
+  flex-shrink: 0;
+  width: 1.2rem;
+  text-align: center;
+}
+
+.chat-menu-label {
+  flex: 1;
+  text-align: left;
+}
+
+/* Toggle pill for Charts on/off */
+.chat-menu-toggle {
+  width: 30px;
+  height: 16px;
+  border-radius: 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  position: relative;
+  transition: background 0.2s, border-color 0.2s;
+  flex-shrink: 0;
+}
+
+.chat-menu-toggle::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition: transform 0.2s, background 0.2s;
+}
+
+.chat-menu-toggle.on {
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+  border-color: var(--accent);
+}
+
+.chat-menu-toggle.on::after {
+  transform: translateX(14px);
+  background: var(--accent);
+}
+
+.chat-menu-divider {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: 0.25rem 0.5rem;
 }
 
 .chat-input-field {

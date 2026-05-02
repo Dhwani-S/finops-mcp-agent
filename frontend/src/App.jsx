@@ -325,6 +325,7 @@ function App() {
               isLoading={isLoading}
               chartMode={chartMode}
               onChartModeChange={setChartMode}
+              messages={messages}
             />
           </footer>
         </div>
