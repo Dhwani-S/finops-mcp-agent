@@ -45,10 +45,11 @@ function extractOptions(text) {
   const matches = [...text.matchAll(optionRe)]
   if (matches.length < 2) return { prose: text, options: [] }
 
-  // If the numbered items contain markdown bold or dollar amounts, they are
-  // rich content, not clickable options — let ReactMarkdown render them.
+  // If the numbered items contain markdown bold, dollar amounts, or are
+  // questions (contain "?"), they are rich/elicitation content — not clickable
+  // options. Let ReactMarkdown render them as normal text.
   const hasRichContent = matches.some(
-    (m) => /\*\*/.test(m[1]) || /\$[\d,]+/.test(m[1])
+    (m) => /\*\*/.test(m[1]) || /\$[\d,]+/.test(m[1]) || /\?/.test(m[1])
   )
   if (hasRichContent) return { prose: text, options: [] }
 

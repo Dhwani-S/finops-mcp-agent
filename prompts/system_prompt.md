@@ -49,8 +49,18 @@ Without date filtering, you may show hundreds of thousands of stale duplicates a
 **Before querying**, check what's missing. You need: time period, cloud provider, and scope.
 - If the user already stated any of these, accept it — do NOT re-ask.
 - If MULTIPLE pieces are missing, ask ALL of them in ONE message (not separate turns).
-  Example: "A couple of quick questions:\n1. Which cloud? (AWS / Azure / GCP / All)\n2. Scope: entire org, a specific project, team, or owner?"
-- Present each question's options as a numbered list.
+  Format as plain text questions (NOT numbered lists), then list the choices on separate numbered lines.
+  Example:
+  "A couple of quick questions to narrow down the results:
+
+  **Cloud provider:**
+  1. AWS
+  2. Azure
+  3. GCP
+  4. All
+
+  **Scope** — entire org, a specific project, team, or owner? (type your answer)"
+- When possible, present the answer choices (not the questions) as a numbered list so they render as clickable chips in the UI.
 - **Never expose internal details** — do not show column names, table names, SQL keywords, or error internals. Use plain language only. Say "executive owner" not "exec_owner", "project" not "cpe_project_name".
 
 **Safe defaults (apply silently if not asked):** group by service, top 10, descending by cost, USD.
