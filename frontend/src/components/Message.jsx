@@ -6,13 +6,38 @@ import ReasoningBlock from './ReasoningBlock'
 import ChartView, { extractChartData } from './ChartView'
 import './Message.css'
 
+function ChartIcon({ size = 14 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4 19V5" />
+      <path d="M4 19h16" />
+      <rect x="7" y="11" width="3" height="5" rx="1" />
+      <rect x="12" y="7" width="3" height="9" rx="1" />
+      <rect x="17" y="9" width="3" height="7" rx="1" />
+    </svg>
+  )
+}
+
 /**
- * Extract numbered options (1. Foo, 2. Bar …) from the agent's text.
- * Only matches lines that are PURELY a numbered option — not markdown bold items
- * like "1. **Gemini 2.5 Flash**: $24,004" which should render as rich content.
+ * Extract lightweight choice prompts from agent text.
+ * Keeps rich analytical lists as markdown, but turns simple "1. Foo" or
+ * inline "a) Foo b) Bar" clarification choices into clickable chips.
  */
 function extractOptions(text) {
   if (!text) return { prose: text, options: [] }
+
+  const lettered = extractLetteredOptions()
+  if (lettered) return lettered
 
   // Only match simple numbered lines that look like clickable options
   // (no markdown formatting, no colons with values, no long descriptions)
@@ -37,6 +62,48 @@ function extractOptions(text) {
   prose = prose.replace(/\n{3,}/g, '\n\n').trim()
 
   return { prose, options }
+
+  function extractLetteredOptions() {
+    const markerRe = /(^|\s)([a-z])\)\s+/gi
+    const markers = []
+    let match
+
+    while ((match = markerRe.exec(text)) !== null) {
+      const leading = match[1] || ''
+      markers.push({
+        key: match[2].toLowerCase(),
+        markerStart: match.index + leading.length,
+        contentStart: match.index + match[0].length,
+      })
+    }
+
+    if (markers.length < 2) return null
+
+    const letteredOptions = markers.map((marker, i) => {
+      const next = markers[i + 1]
+      const end = next ? next.markerStart : text.length
+      return {
+        num: marker.key,
+        label: text.slice(marker.contentStart, end).trim(),
+        end,
+      }
+    })
+
+    const hasRichContent = letteredOptions.some(
+      (opt) => /\*\*/.test(opt.label) || /\$[\d,]+/.test(opt.label)
+    )
+    if (hasRichContent) return null
+
+    const lastOptionEnd = letteredOptions[letteredOptions.length - 1].end
+    const cleanedProse = (
+      text.slice(0, markers[0].markerStart) + text.slice(lastOptionEnd)
+    ).replace(/\n{3,}/g, '\n\n').trim()
+
+    return {
+      prose: cleanedProse,
+      options: letteredOptions.map(({ num, label }) => ({ num, label })),
+    }
+  }
 }
 
 function CopyButton({ text }) {
@@ -258,7 +325,7 @@ export default function Message({ message, onOptionClick, disabled, chartMode })
             className={`chart-toggle-btn ${showChart ? 'active' : ''}`}
             onClick={() => setShowChart((v) => !v)}
           >
-            <span aria-hidden="true">📊</span> {showChart ? 'Hide Charts' : 'Show Charts'}
+            <ChartIcon /> {showChart ? 'Hide Charts' : 'Show Charts'}
           </button>
         </div>
       )}

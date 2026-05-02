@@ -1,5 +1,38 @@
 import './StatusBar.css'
 
+function ActionIcon({ name }) {
+  const common = {
+    width: 14,
+    height: 14,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 2,
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+    'aria-hidden': 'true',
+  }
+
+  if (name === 'copy') {
+    return (
+      <svg {...common}>
+        <rect x="9" y="9" width="13" height="13" rx="2" />
+        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+      </svg>
+    )
+  }
+
+  return (
+    <svg {...common}>
+      <path d="M3 6h18" />
+      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+    </svg>
+  )
+}
+
 function formatUpdated(d) {
   if (!d) return null
   try {
@@ -27,10 +60,12 @@ export default function StatusBar({ status, statusUpdatedAt, onClear, onExport, 
         <div className="status-bar-actions">
           {hasMessages && (
             <button type="button" className="btn-clear" onClick={onExport} title="Copy conversation to clipboard">
+              <ActionIcon name="copy" />
               Copy chat
             </button>
           )}
           <button type="button" className="btn-clear" onClick={onClear} title="Clear conversation">
+            <ActionIcon name="clear" />
             Clear chat
           </button>
         </div>
@@ -61,10 +96,12 @@ export default function StatusBar({ status, statusUpdatedAt, onClear, onExport, 
       <div className="status-bar-actions">
         {hasMessages && (
           <button type="button" className="btn-clear" onClick={onExport} title="Copy conversation to clipboard">
+            <ActionIcon name="copy" />
             Copy chat
           </button>
         )}
         <button type="button" className="btn-clear" onClick={onClear} title="Clear conversation">
+          <ActionIcon name="clear" />
           Clear chat
         </button>
       </div>

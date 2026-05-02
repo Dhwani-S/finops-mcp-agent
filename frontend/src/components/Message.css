@@ -165,34 +165,37 @@
 .message-options {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.35rem;
-  margin-top: 0.45rem;
+  gap: 0.25rem;
+  margin-top: 0.5rem;
+  padding-top: 0.4rem;
+  border-top: 1px dashed var(--border-subtle);
 }
 
 .message-option-chip {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  padding: 0.35rem 0.65rem;
-  font-size: 0.8125rem;
+  gap: 0.25rem;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.72rem;
   font-family: inherit;
   font-weight: 500;
-  color: var(--text-primary);
-  background: var(--bg-elevated);
+  color: var(--text-muted);
+  background: transparent;
   border: 1px solid var(--border-subtle);
   border-radius: 999px;
   cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease;
-  line-height: 1.35;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s;
+  line-height: 1.3;
 }
 
 .message-option-chip:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
-  background: color-mix(in srgb, var(--accent) 6%, var(--bg-elevated));
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  color: var(--accent);
 }
 
 .message-option-chip:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
 }
 
@@ -200,9 +203,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.2rem;
-  height: 1.2rem;
-  font-size: 0.68rem;
+  width: 0.95rem;
+  height: 0.95rem;
+  font-size: 0.58rem;
   font-weight: 700;
   color: var(--accent);
   background: color-mix(in srgb, var(--accent) 10%, transparent);
@@ -216,7 +219,7 @@
   align-items: center;
   gap: 0.4rem;
   padding: 0.45rem 0.9rem;
-  border-radius: 8px;
+  border-radius: 999px;
   background: var(--bg-elevated);
   border: 1px solid var(--border-subtle);
   color: var(--accent);
@@ -243,13 +246,13 @@
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  padding: 0.4rem 0.85rem;
-  border-radius: 8px;
+  padding: 0.34rem 0.7rem;
+  border-radius: 999px;
   border: 1px solid var(--border-subtle);
   background: var(--bg-elevated);
   color: var(--text-secondary);
-  font-size: 0.82rem;
-  font-weight: 500;
+  font-size: 0.78rem;
+  font-weight: 600;
   cursor: pointer;
   transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
@@ -257,6 +260,7 @@
 .chart-toggle-btn:hover {
   border-color: color-mix(in srgb, var(--accent) 40%, transparent);
   color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--bg-elevated));
 }
 
 .chart-toggle-btn.active {

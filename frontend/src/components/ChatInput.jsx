@@ -1,6 +1,57 @@
 ﻿import { useState, useRef, useEffect } from 'react'
 import './ChatInput.css'
 
+function Icon({ name, size = 16 }) {
+  const common = {
+    width: size,
+    height: size,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 2,
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+    'aria-hidden': 'true',
+  }
+
+  if (name === 'chart') {
+    return (
+      <svg {...common}>
+        <path d="M4 19V5" />
+        <path d="M4 19h16" />
+        <rect x="7" y="11" width="3" height="5" rx="1" />
+        <rect x="12" y="7" width="3" height="9" rx="1" />
+        <rect x="17" y="9" width="3" height="7" rx="1" />
+      </svg>
+    )
+  }
+
+  if (name === 'csv') {
+    return (
+      <svg {...common}>
+        <path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7z" />
+        <path d="M14 2v5h5" />
+        <path d="M8 13h8" />
+        <path d="M8 17h5" />
+      </svg>
+    )
+  }
+
+  if (name === 'excel') {
+    return (
+      <svg {...common}>
+        <path d="M4 5a2 2 0 0 1 2-2h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" />
+        <path d="M15 3v5h5" />
+        <path d="M8 12h8" />
+        <path d="M8 16h8" />
+        <path d="M12 12v4" />
+      </svg>
+    )
+  }
+
+  return null
+}
+
 export default function ChatInput({
   onSend,
   onStop,
@@ -45,12 +96,25 @@ export default function ChatInput({
 
   /* ── Export helpers ─────────────────────────────── */
 
-  /** Find the last assistant message that has chart data (table rows). */
+  /** Find the last agent message that has chartable table rows. */
   const getLastAssistantData = () => {
     if (!messages) return null
     for (let i = messages.length - 1; i >= 0; i--) {
       const m = messages[i]
-      if (m.role !== 'assistant') continue
+      if (m.role !== 'agent' && m.role !== 'assistant') continue
+
+      for (let j = (m.events?.length || 0) - 1; j >= 0; j--) {
+        const evt = m.events[j]
+        if (evt?.type !== 'tool_result' || !evt.result) continue
+        try {
+          const parsed = JSON.parse(evt.result)
+          const rows = Array.isArray(parsed) ? parsed : parsed?.values
+          if (Array.isArray(rows) && rows.length) return { rows }
+        } catch {
+          /* ignore */
+        }
+      }
+
       // chart data is embedded as ```chart-data JSON blocks
       const match = m.content?.match(/```chart-data\s*\n([\s\S]*?)```/)
       if (match) {
@@ -160,17 +224,17 @@ ${xmlRows}
                 className={`chat-menu-item ${chartMode ? 'active' : ''}`}
                 onClick={() => { onChartModeChange?.(!chartMode); setMenuOpen(false) }}
               >
-                <span className="chat-menu-icon">📊</span>
+                <span className="chat-menu-icon"><Icon name="chart" /></span>
                 <span className="chat-menu-label">Charts</span>
                 <span className={`chat-menu-toggle ${chartMode ? 'on' : ''}`} />
               </button>
               <div className="chat-menu-divider" />
               <button type="button" className="chat-menu-item" onClick={exportCSV}>
-                <span className="chat-menu-icon">📥</span>
+                <span className="chat-menu-icon"><Icon name="csv" /></span>
                 <span className="chat-menu-label">Export CSV</span>
               </button>
               <button type="button" className="chat-menu-item" onClick={exportExcel}>
-                <span className="chat-menu-icon">📊</span>
+                <span className="chat-menu-icon"><Icon name="excel" /></span>
                 <span className="chat-menu-label">Export Excel</span>
               </button>
             </div>

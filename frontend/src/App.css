@@ -31,7 +31,7 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
-  padding: 1.1rem 0 0.85rem;
+  padding: 1.05rem 0 0.8rem;
   border-bottom: 1px solid var(--border-subtle);
   flex-wrap: wrap;
   flex-shrink: 0;
@@ -53,11 +53,33 @@
 }
 
 .app-title-mark {
-  width: 0.45rem;
-  height: 1.35rem;
-  border-radius: 3px;
-  background: linear-gradient(180deg, var(--accent-2), var(--accent));
-  box-shadow: var(--glow-accent);
+  width: 1.45rem;
+  height: 1.45rem;
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent-2) 86%, white 8%), var(--accent));
+  box-shadow: 0 6px 14px color-mix(in srgb, var(--accent) 16%, transparent);
+  position: relative;
+}
+
+.app-title-mark::before,
+.app-title-mark::after {
+  content: '';
+  position: absolute;
+  bottom: 0.34rem;
+  width: 0.16rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, white 88%, transparent);
+}
+
+.app-title-mark::before {
+  left: 0.49rem;
+  height: 0.42rem;
+}
+
+.app-title-mark::after {
+  right: 0.49rem;
+  height: 0.66rem;
 }
 
 .app-tagline {
@@ -79,7 +101,7 @@
 
 .app-footer {
   flex-shrink: 0;
-  padding: 0.65rem 0 0.25rem;
+  padding: 0.5rem 0 0.2rem;
   border-top: 1px solid var(--border-subtle);
 }
 

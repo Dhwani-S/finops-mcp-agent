@@ -19,6 +19,39 @@ const COLORS = [
 
 const CHART_TYPES = ['bar', 'pie']
 
+function ChartTypeIcon({ type }) {
+  const common = {
+    width: 14,
+    height: 14,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 2,
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+    'aria-hidden': 'true',
+  }
+
+  if (type === 'pie') {
+    return (
+      <svg {...common}>
+        <path d="M21 12a9 9 0 1 1-9-9v9z" />
+        <path d="M12 3a9 9 0 0 1 9 9h-9z" />
+      </svg>
+    )
+  }
+
+  return (
+    <svg {...common}>
+      <path d="M4 19V5" />
+      <path d="M4 19h16" />
+      <rect x="7" y="11" width="3" height="5" rx="1" />
+      <rect x="12" y="7" width="3" height="9" rx="1" />
+      <rect x="17" y="9" width="3" height="7" rx="1" />
+    </svg>
+  )
+}
+
 /**
  * Try to extract chartable JSON arrays from tool_result strings.
  * Returns an array of { label, data, labelKey, valueKeys } objects.
@@ -163,7 +196,8 @@ export default function ChartView({ chartData }) {
               className={`chart-type-btn ${chartType === t ? 'active' : ''}`}
               onClick={() => setChartType(t)}
             >
-              {t === 'bar' ? '📊' : '🍩'} {t.charAt(0).toUpperCase() + t.slice(1)}
+              <ChartTypeIcon type={t} />
+              {t.charAt(0).toUpperCase() + t.slice(1)}
             </button>
           ))}
         </div>

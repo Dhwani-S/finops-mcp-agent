@@ -1,16 +1,15 @@
 .chat-input-wrap {
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  gap: 0.3rem;
 }
 
 .chat-input {
   display: flex;
-  gap: 0.65rem;
+  gap: 0.45rem;
   align-items: stretch;
 }
 
-/* ── Options menu (vertical dots) ── */
 .chat-input-menu-wrap {
   position: relative;
   display: flex;
@@ -21,20 +20,21 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 2.5rem;
+  width: 2.35rem;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
-  background: var(--bg-elevated);
+  background: var(--bg-card);
   color: var(--text-muted);
   cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s;
 }
 
 .chat-input-btn--menu:hover,
 .chat-input-btn--menu.open {
   color: var(--text-secondary);
   border-color: color-mix(in srgb, var(--accent) 40%, transparent);
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--bg-card));
+  box-shadow: none;
 }
 
 .chat-input-btn--menu.has-active {
@@ -46,14 +46,15 @@
   position: absolute;
   bottom: calc(100% + 6px);
   right: 0;
-  min-width: 11rem;
+  min-width: 10.75rem;
   background: var(--bg-card);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 10px 28px color-mix(in srgb, black 14%, transparent);
   padding: 0.3rem;
   z-index: 100;
   animation: menu-pop 0.12s ease-out;
+  backdrop-filter: blur(12px);
 }
 
 @keyframes menu-pop {
@@ -64,22 +65,22 @@
 .chat-menu-item {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.55rem;
   width: 100%;
-  padding: 0.5rem 0.65rem;
+  padding: 0.5rem 0.6rem;
   border: none;
-  border-radius: 6px;
+  border-radius: 7px;
   background: transparent;
   color: var(--text-secondary);
-  font-size: 0.82rem;
-  font-weight: 500;
+  font-size: 0.81rem;
+  font-weight: 600;
   font-family: inherit;
   cursor: pointer;
   transition: background 0.12s, color 0.12s;
 }
 
 .chat-menu-item:hover {
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
   color: var(--text-primary);
 }
 
@@ -88,10 +89,20 @@
 }
 
 .chat-menu-icon {
-  font-size: 0.92rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
-  width: 1.2rem;
-  text-align: center;
+  width: 1.45rem;
+  height: 1.45rem;
+  border-radius: 7px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+}
+
+.chat-menu-icon svg {
+  width: 14px;
+  height: 14px;
 }
 
 .chat-menu-label {
@@ -99,12 +110,11 @@
   text-align: left;
 }
 
-/* Toggle pill for Charts on/off */
 .chat-menu-toggle {
-  width: 30px;
-  height: 16px;
-  border-radius: 10px;
-  background: var(--bg-elevated);
+  width: 32px;
+  height: 18px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-muted) 14%, transparent);
   border: 1px solid var(--border-subtle);
   position: relative;
   transition: background 0.2s, border-color 0.2s;
@@ -116,21 +126,21 @@
   position: absolute;
   top: 2px;
   left: 2px;
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
-  background: var(--text-muted);
+  background: color-mix(in srgb, white 82%, var(--text-muted));
   transition: transform 0.2s, background 0.2s;
 }
 
 .chat-menu-toggle.on {
-  background: color-mix(in srgb, var(--accent) 25%, transparent);
+  background: var(--accent);
   border-color: var(--accent);
 }
 
 .chat-menu-toggle.on::after {
   transform: translateX(14px);
-  background: var(--accent);
+  background: #fff;
 }
 
 .chat-menu-divider {
@@ -141,7 +151,7 @@
 
 .chat-input-field {
   flex: 1;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   background: var(--bg-input);
   border: 1px solid var(--border-subtle);
   box-shadow: inset 0 1px 0 color-mix(in srgb, white 4%, transparent);
@@ -158,18 +168,18 @@
 .chat-input textarea {
   display: block;
   width: 100%;
-  padding: 0.85rem 1rem;
+  padding: 0.58rem 0.85rem;
   background: transparent;
   color: var(--text-primary);
   border: none;
-  border-radius: var(--radius-lg);
-  font-size: 0.92rem;
+  border-radius: var(--radius-md);
+  font-size: 0.86rem;
   font-family: inherit;
   resize: none;
   outline: none;
-  min-height: 48px;
-  max-height: 140px;
-  line-height: 1.45;
+  min-height: 36px;
+  max-height: 110px;
+  line-height: 1.35;
 }
 
 .chat-input textarea::placeholder {
@@ -186,11 +196,11 @@
   align-items: center;
   justify-content: center;
   gap: 0.4rem;
-  padding: 0 1.15rem;
-  min-width: 5.5rem;
+  padding: 0 0.85rem;
+  min-width: 4.45rem;
   border: none;
   border-radius: var(--radius-md);
-  font-size: 0.88rem;
+  font-size: 0.82rem;
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
@@ -211,9 +221,9 @@
 }
 
 .chat-input-btn--send {
-  background: linear-gradient(135deg, var(--accent-hover), var(--accent));
+  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 82%, var(--accent-2)));
   color: white;
-  box-shadow: var(--glow-accent);
+  box-shadow: 0 5px 12px color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 .chat-input-btn--stop {
@@ -230,9 +240,9 @@
 .send-arrow {
   width: 0;
   height: 0;
-  border-left: 5px solid currentColor;
-  border-top: 4px solid transparent;
-  border-bottom: 4px solid transparent;
+  border-left: 4px solid currentColor;
+  border-top: 3px solid transparent;
+  border-bottom: 3px solid transparent;
   opacity: 0.95;
 }
 
@@ -244,15 +254,16 @@
 }
 
 .chat-input-hint {
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   color: var(--text-muted);
   padding-left: 0.15rem;
+  line-height: 1.2;
 }
 
 .chat-input-hint kbd {
   font-family: var(--font-mono);
-  font-size: 0.65rem;
-  padding: 0.1rem 0.35rem;
+  font-size: 0.61rem;
+  padding: 0.06rem 0.28rem;
   border-radius: 4px;
   background: var(--bg-elevated);
   border: 1px solid var(--border-subtle);
