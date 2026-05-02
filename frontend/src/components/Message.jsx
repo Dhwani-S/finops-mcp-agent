@@ -83,7 +83,7 @@ function CopyButton({ text }) {
 }
 
 /* ── Max visible rows before truncation ── */
-const TABLE_PREVIEW_ROWS = 5
+const TABLE_PREVIEW_ROWS = 10
 
 /** Recursively extract text from React children (for CSV export). */
 function textOf(node) {
@@ -133,7 +133,8 @@ function CollapsibleTable({ children, ...props }) {
 
   const allRows = tbody ? Children.toArray(tbody.props.children) : []
   const total = allRows.length
-  const needsTruncation = total > TABLE_PREVIEW_ROWS
+  // Only truncate if hiding at least 3 rows — hiding 1-2 rows is more annoying than helpful
+  const needsTruncation = total > TABLE_PREVIEW_ROWS + 2
 
   const visibleRows = needsTruncation && !expanded ? allRows.slice(0, TABLE_PREVIEW_ROWS) : allRows
 
