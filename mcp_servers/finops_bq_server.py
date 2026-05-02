@@ -175,17 +175,19 @@ def bq_list_dimension_values(
 ) -> str:
     """Look up distinct values for a column in a BigQuery cost table.
 
-    Use this BEFORE writing cost queries to find exact project names, service names,
-    regions, environments, or any other entity values that actually exist in the data.
+    DATA SCOPE: GCP costs, AWS costs, Azure costs, utilization metrics, GCP recommendations.
+    DO NOT USE for: Azure/AWS recommendations, K8s costs, identity lookups — use sql_list_dimension_values instead.
+
+    Use this BEFORE writing any run_bq_query to find exact entity values that exist in the data.
     Returns distinct values sorted by frequency (most common first).
 
     WHEN TO USE:
     - User mentions a project, service, account, region, owner, or team by name
-    - You need to verify what values exist before filtering
+    - You need to verify what values exist before filtering in run_bq_query
     - User's term is vague and might match multiple entries
 
     Args:
-        table: Fully qualified BQ table (e.g. <project_id>.gcp.daily_usage_costs).
+        table: Fully qualified BQ table (e.g. cie-costmanagement-803717.gcp.daily_usage_costs).
         column: Column name to look up distinct values for (e.g. cpe_project_name, service_description).
         filter_term: Optional text filter — returns only values containing this term (case-insensitive). Leave empty to list all values.
         limit: Max number of distinct values to return. Default 25.
@@ -276,8 +278,19 @@ def bq_list_dimension_values(
 def run_bq_query(sql: str) -> str:
     """Execute a read-only BigQuery SQL query against FinOps cost data.
 
+    DATA SCOPE: GCP costs, AWS costs, Azure costs, utilization metrics, GCP recommendations.
+    DO NOT USE for: Azure/AWS recommendations, K8s costs — use run_sql_query instead.
+
+    PREREQUISITE: You MUST call bq_list_dimension_values first to confirm exact entity names
+    (project names, service names, etc.) before using them in WHERE clauses. Do NOT guess column values.
+
     Returns results as JSON (max 500 rows). Only SELECT/WITH statements allowed.
-    Must use fully qualified table names with project ID.
+    Must use fully qualified table names with project ID (cie-costmanagement-803717.dataset.table).
+
+    SYNTAX REMINDERS:
+    - Use LIMIT N (not TOP N — that's T-SQL)
+    - Azure dateTime is TIMESTAMP — use DATE(dateTime) for date comparisons
+    - GCP/AWS date columns are DATE type — compare directly
 
     Args:
         sql: BigQuery Standard SQL query string.

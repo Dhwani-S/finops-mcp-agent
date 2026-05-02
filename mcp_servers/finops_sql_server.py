@@ -167,13 +167,15 @@ def sql_list_dimension_values(
 ) -> str:
     """Look up distinct values for a column in a SQL Server table.
 
-    Use this BEFORE writing cost queries to find exact project names, service names,
-    regions, environments, subscription names, or any other entity values in the data.
+    DATA SCOPE: Azure/AWS recommendations, K8s costs, observability costs, identity mappings.
+    DO NOT USE for: GCP/AWS/Azure daily cost data — use bq_list_dimension_values instead.
+
+    Use this BEFORE writing run_sql_query to find exact entity values in the data.
     Returns distinct values sorted by frequency (most common first).
 
     WHEN TO USE:
-    - User mentions a project, service, subscription, region, owner, or team by name
-    - You need to verify what values exist before filtering
+    - User asks about recommendations, K8s costs, or observability data
+    - You need to verify subscription names, resource types, or other entities in SQL Server tables
     - User's term is vague and might match multiple entries
 
     Args:
@@ -248,8 +250,19 @@ def sql_list_dimension_values(
 def run_sql_query(sql: str) -> str:
     """Execute a read-only T-SQL query against the FinOps SQL Server database.
 
+    DATA SCOPE: Azure/AWS recommendations, K8s costs, observability costs, identity mappings.
+    DO NOT USE for: GCP/AWS/Azure daily cost data — use run_bq_query instead.
+
+    PREREQUISITE: You MUST call get_table_schema or sql_list_dimension_values first to confirm
+    exact column names and entity values. Do NOT guess column names.
+
     Returns results as JSON (max 500 rows). Only SELECT/WITH statements allowed.
-    Use [schema].[table] notation (e.g. reporting.azure_recommendations).
+    Use [schema].[table] notation (e.g. [reporting].[azure_recommendations]).
+
+    SYNTAX REMINDERS:
+    - Use TOP N (not LIMIT N — that's BigQuery)
+    - Use LIKE for pattern matching (not REGEXP)
+    - Date functions: DATEADD, DATEDIFF, GETDATE(), CAST(x AS DATE)
 
     Args:
         sql: T-SQL query string.

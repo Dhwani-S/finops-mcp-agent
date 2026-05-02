@@ -107,9 +107,18 @@ def detect_anomalies(data_json: str, method: str = "z_score",
                      sensitivity: float = 2.5) -> str:
     """Detect anomalies in time-series cost data using statistical methods.
 
+    DO NOT call this with raw BQ/SQL query results directly. First transform the query output
+    into a simple array with one date column and one numeric column per object.
+
+    REQUIRED INPUT FORMAT: JSON array where each object has:
+    - A date field named one of: date, day, dateTime, period, month
+    - A numeric field named one of: spend, cost, value, amount, total_cost, total_spend
+    Example: [{"date": "2026-04-01", "spend": 1234.56}, {"date": "2026-04-02", "spend": 1100.00}]
+
+    Minimum 7 data points required.
+
     Args:
-        data_json: JSON array of objects with date and value fields.
-                   Example: [{"date": "2026-04-01", "spend": 1234.56}, ...]
+        data_json: JSON array of objects with date and value fields (see format above).
         method: Detection method — "z_score" or "iqr". Default: "z_score".
         sensitivity: Threshold — lower = more sensitive. Default: 2.5.
                      For z_score: number of standard deviations.
@@ -213,9 +222,19 @@ def forecast(data_json: str, periods_ahead: int = 7,
              method: str = "linear") -> str:
     """Forecast future cost values from historical time-series data.
 
+    DO NOT call this with raw BQ/SQL query results directly. First transform the query output
+    into a simple array with one date column and one numeric column per object, sorted chronologically.
+
+    REQUIRED INPUT FORMAT: JSON array where each object has:
+    - A date field named one of: date, day, dateTime, period, month
+    - A numeric field named one of: spend, cost, value, amount, total_cost, total_spend
+    Example: [{"date": "2026-03-01", "spend": 50000}, {"date": "2026-03-02", "spend": 51000}, ...]
+
+    Minimum 7 data points required. Data MUST be sorted by date ascending.
+
     Args:
         data_json: JSON array of objects with date and value fields, sorted chronologically.
-        periods_ahead: Number of future periods to forecast. Default: 7.
+        periods_ahead: Number of future periods to forecast. Default: 7. Max: 90.
         method: "linear" (linear regression) or "ema" (exponential moving average). Default: "linear".
 
     Returns:
@@ -329,9 +348,18 @@ def forecast(data_json: str, periods_ahead: int = 7,
 def calculate_growth(data_json: str, period: str = "MoM") -> str:
     """Calculate growth rates between periods in cost data.
 
+    DO NOT call this with raw daily cost data. First aggregate your query results into
+    period-level totals (e.g., monthly totals) before passing them here.
+
+    REQUIRED INPUT FORMAT: JSON array where each object has:
+    - A period label field named one of: month, week, quarter, year, period, date
+    - A numeric value field named one of: spend, value, cost, total, amount, total_spend
+    Example: [{"month": "2026-01", "spend": 50000}, {"month": "2026-02", "spend": 55000}]
+
+    Minimum 2 data points required.
+
     Args:
-        data_json: JSON array of objects with period label and value.
-                   Example: [{"month": "2026-01", "spend": 50000}, {"month": "2026-02", "spend": 55000}]
+        data_json: JSON array of objects with period label and value (see format above).
         period: Growth period type — "MoM" (month-over-month), "WoW" (week-over-week),
                 "QoQ" (quarter-over-quarter), or "YoY" (year-over-year). Default: "MoM".
 
@@ -406,15 +434,18 @@ def score_recommendations(recommendations_json: str) -> str:
     Scores each recommendation by: savings_potential × confidence × (1/effort).
     Higher score = higher priority.
 
+    INPUT: Pass the JSON output from run_sql_query on recommendation tables directly.
+    Each object should have at minimum an estimated_monthly_savings field.
+
     Args:
         recommendations_json: JSON array of recommendation objects. Each should have:
             - estimated_monthly_savings (required, numeric)
             - confidence (optional, 0–1, default 0.8)
             - effort (optional, "low"/"medium"/"high", default "medium")
-            - Any other fields are passed through.
+            - Any other fields are passed through unchanged.
 
     Returns:
-        JSON array of scored and ranked recommendations.
+        JSON array of scored and ranked recommendations with _score, _rank, _annual_savings fields added.
     """
     data = _parse_data(recommendations_json)
     if not data:
@@ -465,12 +496,13 @@ def score_recommendations(recommendations_json: str) -> str:
 def validate_results(data_json: str, query_context: str = "") -> str:
     """Post-query sanity checks on cost data results.
 
+    Call this after run_bq_query or run_sql_query when dealing with large or critical datasets.
     Checks for: negative costs, extreme growth rates, null rate issues,
     sum consistency, and zero-row conditions.
 
     Args:
-        data_json: JSON array of result rows from a cost query.
-        query_context: Optional description of the query for better diagnostics.
+        data_json: JSON array of result rows from a cost query (pass the raw tool output).
+        query_context: Optional description of the query for better diagnostics (e.g., "GCP costs by service for March 2026").
 
     Returns:
         JSON with validation results — pass/warn/fail per check.

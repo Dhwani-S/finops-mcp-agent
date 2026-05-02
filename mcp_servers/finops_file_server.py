@@ -47,7 +47,12 @@ def _safe_path(relative: str) -> Path:
 # Tool implementations
 @mcp.tool()
 def write_file(path: str, content: str) -> str:
-    """Save or overwrite a file in the reports sandbox. Atomic write (temp + rename)."""
+    """Save or overwrite a file in the reports sandbox. Atomic write (temp + rename).
+
+    Use for: markdown reports, text files, JSON files.
+    DO NOT USE for CSV output from structured data — use export_csv instead, which handles
+    header generation and proper CSV formatting automatically.
+    """
     if len(content.encode("utf-8")) > MAX_FILE_SIZE_BYTES:
         return f"Error: Content exceeds {MAX_FILE_SIZE_BYTES // (1024*1024)} MB limit."
 
@@ -110,9 +115,12 @@ def delete_file(path: str) -> str:
 @mcp.tool()
 def export_csv(filename: str, json_data: str) -> str:
     """Convert JSON array of objects to CSV and save in the reports sandbox.
-    
+
+    Use this instead of write_file when you have structured JSON data (e.g., query results)
+    that needs CSV format conversion. Automatically generates headers from object keys.
+
     Args:
-        filename: Output filename (e.g., 'costs_april.csv')
+        filename: Output filename (e.g., 'costs_april.csv'). Will be saved in reports/ sandbox.
         json_data: JSON string of array of objects, e.g. '[{"service":"EC2","cost":1234}]'
     """
     try:

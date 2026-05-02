@@ -69,6 +69,10 @@ SERVERS: dict[str, dict] = {
 # JSON Schema keys that Gemini function calling doesn't support
 _STRIP_KEYS = frozenset({"additionalProperties", "$schema", "$id", "title"})
 
+# Max chars of tool output to keep in conversation history.
+# Large BQ results (500 rows of JSON) pollute context and cause hallucinations.
+_MAX_TOOL_RESULT_CHARS = 4000
+
 
 # ---------------------------------------------------------------------------
 # Agent
@@ -179,8 +183,12 @@ class FinOpsAgent:
     # -- system prompt -----------------------------------------------------
 
     async def _build_system_prompt(self) -> str:
-        """Load all MCP resources and compose the system prompt."""
+        """Load all MCP resources and compose the system prompt.
+        
+        Caps each resource at 2000 chars to prevent prompt bloat.
+        """
         resource_sections: list[str] = []
+        _MAX_RESOURCE_CHARS = 2000
 
         for name, session in self._sessions.items():
             try:
@@ -194,6 +202,8 @@ class FinOpsAgent:
                                 text = item.text
                                 break
                         if text:
+                            if len(text) > _MAX_RESOURCE_CHARS:
+                                text = text[:_MAX_RESOURCE_CHARS] + "\n[... truncated]"
                             resource_sections.append(
                                 f"### {res.uri}\n{text}"
                             )
@@ -298,6 +308,25 @@ class FinOpsAgent:
                             result_text = f"Error calling {fc.name}: {exc}"
 
                         logger.info("← %d chars", len(result_text))
+
+                    # Truncate large results to prevent context window pollution
+                    if len(result_text) > _MAX_TOOL_RESULT_CHARS:
+                        truncated = result_text[:_MAX_TOOL_RESULT_CHARS]
+                        # Try to count rows for a helpful summary
+                        try:
+                            parsed = json.loads(result_text)
+                            if isinstance(parsed, list):
+                                row_count = len(parsed)
+                                truncated += (
+                                    f"\n\n[TRUNCATED — showing first ~{_MAX_TOOL_RESULT_CHARS} chars "
+                                    f"of {row_count} rows. Use the data above for analysis. "
+                                    f"Do NOT re-fetch — you already have the data.]"
+                                )
+                            else:
+                                truncated += "\n\n[TRUNCATED — result too large to show in full.]"
+                        except (json.JSONDecodeError, TypeError):
+                            truncated += "\n\n[TRUNCATED — result too large to show in full.]"
+                        result_text = truncated
 
                     fn_responses[idx] = types.Part.from_function_response(
                         name=fc.name,
