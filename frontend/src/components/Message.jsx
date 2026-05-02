@@ -245,8 +245,14 @@ function CollapsibleTable({ children, ...props }) {
 }
 
 function OptionChips({ options, onOptionClick, disabled }) {
-  const [selected, setSelected] = useState(new Set())
+  // Heuristic: if options look like questions/sentences (contain "?" or are long),
+  // they're mutually exclusive → single-select (click sends immediately).
+  // Short entity names (projects, services) → multi-select with All + Done.
+  const isMultiSelect = options.every(
+    (o) => !o.label.includes('?') && o.label.length <= 40
+  )
 
+  const [selected, setSelected] = useState(new Set())
   const allSelected = selected.size === options.length
   const anySelected = selected.size > 0
 
@@ -270,6 +276,27 @@ function OptionChips({ options, onOptionClick, disabled }) {
     onOptionClick?.(labels.join(', '))
   }
 
+  // Single-select: click fires immediately (old behavior)
+  if (!isMultiSelect) {
+    return (
+      <div className="message-options" role="group" aria-label="Choose an option">
+        {options.map((opt) => (
+          <button
+            key={opt.num}
+            type="button"
+            className="message-option-chip"
+            disabled={disabled}
+            onClick={() => onOptionClick?.(opt.label)}
+          >
+            <span className="message-option-num">{opt.num}</span>
+            {opt.label}
+          </button>
+        ))}
+      </div>
+    )
+  }
+
+  // Multi-select: toggle + All + Done
   return (
     <div className="message-options" role="group" aria-label="Choose options">
       {options.length >= 3 && (
