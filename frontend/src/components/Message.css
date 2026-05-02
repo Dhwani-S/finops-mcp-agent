@@ -338,3 +338,57 @@
   background: color-mix(in srgb, var(--accent) 3%, transparent);
   border-radius: 0 6px 6px 0;
 }
+
+/* ── Table overflow / truncation bar ── */
+.table-overflow-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  margin: -0.25rem 0 0.5rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  font-size: 0.75rem;
+}
+
+.table-overflow-count {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.table-overflow-actions {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.table-overflow-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.55rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: var(--bg-card);
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.table-overflow-btn:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.table-overflow-btn--download {
+  color: var(--text-secondary);
+}
+
+.table-overflow-btn--download:hover {
+  color: var(--accent);
+}

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, Children, isValidElement } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import ToolEvent from './ToolEvent'
@@ -82,6 +82,100 @@ function CopyButton({ text }) {
   )
 }
 
+/* ── Max visible rows before truncation ── */
+const TABLE_PREVIEW_ROWS = 5
+
+/** Recursively extract text from React children (for CSV export). */
+function textOf(node) {
+  if (node == null) return ''
+  if (typeof node === 'string' || typeof node === 'number') return String(node)
+  if (Array.isArray(node)) return node.map(textOf).join('')
+  if (isValidElement(node)) return textOf(node.props?.children)
+  return ''
+}
+
+/** Download table data as CSV. */
+function downloadTableCSV(thead, allRows) {
+  const headerCells = thead?.props?.children?.props?.children
+  const headers = Children.toArray(headerCells).map((c) => textOf(c))
+
+  const csvRows = [headers.join(',')]
+  for (const tr of allRows) {
+    const cells = Children.toArray(tr.props?.children)
+    csvRows.push(
+      cells
+        .map((c) => {
+          const v = textOf(c)
+          return v.includes(',') || v.includes('"') ? `"${v.replace(/"/g, '""')}"` : v
+        })
+        .join(',')
+    )
+  }
+  const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'finops-table.csv'
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
+/** Markdown table with auto-collapse when rows exceed TABLE_PREVIEW_ROWS. */
+function CollapsibleTable({ children, ...props }) {
+  const [expanded, setExpanded] = useState(false)
+
+  // children = [<thead>, <tbody>]
+  const parts = Children.toArray(children)
+  const thead = parts.find((c) => isValidElement(c) && c.type === 'thead')
+  const tbody = parts.find((c) => isValidElement(c) && c.type === 'tbody')
+
+  const allRows = tbody ? Children.toArray(tbody.props.children) : []
+  const total = allRows.length
+  const needsTruncation = total > TABLE_PREVIEW_ROWS
+
+  const visibleRows = needsTruncation && !expanded ? allRows.slice(0, TABLE_PREVIEW_ROWS) : allRows
+
+  return (
+    <>
+      <table {...props}>
+        {thead}
+        <tbody>{visibleRows}</tbody>
+      </table>
+      {needsTruncation && (
+        <div className="table-overflow-bar">
+          <span className="table-overflow-count">
+            Showing {expanded ? total : TABLE_PREVIEW_ROWS} of {total} rows
+          </span>
+          <div className="table-overflow-actions">
+            <button
+              type="button"
+              className="table-overflow-btn"
+              onClick={() => setExpanded((v) => !v)}
+            >
+              {expanded ? 'Show less' : `Show all ${total} rows`}
+            </button>
+            <button
+              type="button"
+              className="table-overflow-btn table-overflow-btn--download"
+              onClick={() => downloadTableCSV(thead, allRows)}
+              title="Download as CSV"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              CSV
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
 export default function Message({ message, onOptionClick, disabled, chartMode }) {
   const { role, content, events, loading } = message
   const [showChart, setShowChart] = useState(false)
@@ -111,6 +205,9 @@ export default function Message({ message, onOptionClick, disabled, chartMode })
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             components={{
+              table({ node, children, ...props }) {
+                return <CollapsibleTable {...props}>{children}</CollapsibleTable>
+              },
               code({ node, inline, className, children, ...props }) {
                 if (inline) {
                   return <code className="inline-code" {...props}>{children}</code>
