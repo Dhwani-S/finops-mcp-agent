@@ -4,6 +4,8 @@ An MCP-native, multi-cloud cost intelligence platform. Built as a progressive pr
 
 > **Session 4 deliverable:** 4 MCP servers (BQ, SQL Server, Analytics, File) + single Gemini agent + Web API + Dashboard UI.
 
+**[▶ Watch Demo](https://drive.google.com/file/d/1UMCAsbRWVjwdFg1FdogLk5IyklzAP_Ox/view?usp=drive_link)**
+
 ---
 
 ## Architecture
