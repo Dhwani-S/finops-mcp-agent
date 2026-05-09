@@ -473,6 +473,61 @@ def dry_run_bq_query(sql: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Tool: get_bq_table_schema
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def get_bq_table_schema(table: str) -> str:
+    """Discover the schema (columns, types, descriptions) of a BigQuery table at runtime.
+
+    Use this when you need to verify exact column names before writing a query,
+    or when a static schema Resource might be outdated.
+
+    Args:
+        table: Fully qualified BQ table name (e.g. cie-costmanagement-803717.gcp.daily_usage_costs).
+    """
+    client = _init_bq_client()
+    if not client:
+        return "Error: BigQuery client not initialized. Check credentials and GCP_PROJECT_ID."
+
+    clean_table = table.strip().strip("`")
+
+    # Must reference our project
+    if PROJECT_ID not in clean_table:
+        return f"Error: Table must be in project {PROJECT_ID}."
+
+    try:
+        from google.cloud import bigquery as bq
+
+        table_ref = client.get_table(clean_table)
+        columns = []
+        for field in table_ref.schema:
+            col = {
+                "name": field.name,
+                "type": field.field_type,
+                "mode": field.mode,
+            }
+            if field.description:
+                col["description"] = field.description
+            columns.append(col)
+
+        return json.dumps({
+            "table": clean_table,
+            "column_count": len(columns),
+            "total_rows": table_ref.num_rows,
+            "total_bytes": table_ref.num_bytes,
+            "size_gb": round((table_ref.num_bytes or 0) / (1024 ** 3), 2),
+            "created": table_ref.created.isoformat() if table_ref.created else None,
+            "modified": table_ref.modified.isoformat() if table_ref.modified else None,
+            "columns": columns,
+        }, default=str)
+
+    except Exception as e:
+        logger.exception("BQ schema discovery failed")
+        return f"Error: Schema discovery failed — {e}"
+
+
+# ---------------------------------------------------------------------------
 # Resources: table schemas (static files)
 # ---------------------------------------------------------------------------
 

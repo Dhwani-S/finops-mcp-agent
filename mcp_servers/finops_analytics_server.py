@@ -841,6 +841,165 @@ def validate_results(data_json: str, query_context: str = "") -> str:
 
 
 # ---------------------------------------------------------------------------
+# Tool 9: format_currency
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def format_currency(data_json: str, columns: str = "", locale: str = "en_US",
+                    abbreviate: bool = True) -> str:
+    """Format numeric cost columns into consistent, human-readable currency strings.
+
+    Use this to normalize money values before presenting results to users.
+    Converts raw numbers like 245000.5 into "$245.0K" or "$245,000.50".
+
+    Args:
+        data_json: JSON array of objects (pass raw tool output from a query or summarize_data).
+        columns: Comma-separated column names to format (e.g. "total_cost,savings").
+                 If empty, auto-detects columns containing cost/spend/savings/price/amount.
+        locale: Locale for formatting. Default "en_US" ($ prefix, comma thousands).
+        abbreviate: If true, use abbreviations ($1.2K, $3.5M). If false, use full numbers ($1,200.00). Default true.
+    """
+    data = _parse_data(data_json)
+    if not data:
+        return "Error: Could not parse data_json."
+
+    # Determine which columns to format
+    if columns:
+        target_cols = [c.strip() for c in columns.split(",")]
+    else:
+        sample = data[0]
+        target_cols = [
+            k for k in sample
+            if any(c in k.lower() for c in ("cost", "spend", "savings", "price", "amount"))
+            and isinstance(sample.get(k), (int, float))
+        ]
+
+    if not target_cols:
+        return "Error: No numeric cost columns found to format."
+
+    def _fmt(val: float) -> str:
+        if not isinstance(val, (int, float)):
+            return str(val)
+        if abbreviate:
+            abs_v = abs(val)
+            sign = "-" if val < 0 else ""
+            if abs_v >= 1_000_000_000:
+                return f"{sign}${abs_v / 1_000_000_000:.1f}B"
+            if abs_v >= 1_000_000:
+                return f"{sign}${abs_v / 1_000_000:.1f}M"
+            if abs_v >= 1_000:
+                return f"{sign}${abs_v / 1_000:.1f}K"
+            return f"{sign}${abs_v:.2f}"
+        else:
+            sign = "-" if val < 0 else ""
+            abs_v = abs(val)
+            whole = int(abs_v)
+            frac = abs_v - whole
+            formatted_whole = f"{whole:,}"
+            return f"{sign}${formatted_whole}.{int(frac * 100):02d}"
+
+    formatted = []
+    for row in data:
+        new_row = {**row}
+        for col in target_cols:
+            if col in new_row and isinstance(new_row[col], (int, float)):
+                new_row[f"{col}_formatted"] = _fmt(new_row[col])
+        formatted.append(new_row)
+
+    return json.dumps({
+        "formatted_columns": target_cols,
+        "abbreviate": abbreviate,
+        "row_count": len(formatted),
+        "data": formatted,
+    }, default=str)
+
+
+# ---------------------------------------------------------------------------
+# Tool 10: convert_to_chart_data
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def convert_to_chart_data(data_json: str, label_column: str = "",
+                          value_columns: str = "",
+                          chart_title: str = "") -> str:
+    """Convert query results into the exact structure the frontend ChartView expects.
+
+    The frontend auto-detects chart data from tool_result events. This tool ensures
+    the output matches the expected format: { data: [...], labelKey, valueKeys }.
+
+    Use this after run_bq_query or run_sql_query when you want to guarantee
+    a chart renders correctly. Returns a JSON object that should be passed back
+    as-is in the tool result.
+
+    Args:
+        data_json: JSON array of objects (raw query results).
+        label_column: Column to use as chart labels / x-axis (e.g. "service_description").
+                      Auto-detected if empty — picks first string column with most distinct values.
+        value_columns: Comma-separated numeric columns to chart (e.g. "total_cost,previous_cost").
+                       Auto-detected if empty — picks all numeric columns.
+        chart_title: Optional title for the chart.
+    """
+    data = _parse_data(data_json)
+    if not data or len(data) < 2:
+        return "Error: Need at least 2 data rows to build a chart."
+
+    sample = data[0]
+
+    # Auto-detect label column
+    if not label_column:
+        string_keys = [k for k, v in sample.items() if isinstance(v, str)]
+        if not string_keys:
+            return "Error: No string column found for labels. Specify label_column."
+        # Pick string column with most distinct values
+        best_key, best_count = string_keys[0], 0
+        for sk in string_keys:
+            distinct = len(set(str(row.get(sk, "")) for row in data))
+            if distinct > best_count:
+                best_count = distinct
+                best_key = sk
+        label_column = best_key
+
+    # Auto-detect value columns
+    if value_columns:
+        val_cols = [c.strip() for c in value_columns.split(",")]
+    else:
+        val_cols = [k for k, v in sample.items()
+                    if isinstance(v, (int, float)) and k != label_column]
+
+    if not val_cols:
+        return "Error: No numeric columns found for chart values. Specify value_columns."
+
+    # Build chart-ready data — round numbers, filter zero-only rows
+    chart_data = []
+    for row in data:
+        entry = {label_column: str(row.get(label_column, ""))}
+        has_nonzero = False
+        for vk in val_cols:
+            val = row.get(vk)
+            if isinstance(val, (int, float)):
+                entry[vk] = round(val, 2)
+                if abs(val) > 0.005:
+                    has_nonzero = True
+            else:
+                entry[vk] = 0
+        if has_nonzero:
+            chart_data.append(entry)
+
+    if not chart_data:
+        return "Error: All rows have zero values — nothing to chart."
+
+    result = {
+        "data": chart_data,
+        "labelKey": label_column,
+        "valueKeys": val_cols,
+    }
+    if chart_title:
+        result["title"] = chart_title
+
+    return json.dumps(result, default=str)
+
+
+# ---------------------------------------------------------------------------
 # Resources
 # ---------------------------------------------------------------------------
 
