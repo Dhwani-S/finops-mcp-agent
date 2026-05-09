@@ -73,6 +73,9 @@ _STRIP_KEYS = frozenset({"additionalProperties", "$schema", "$id", "title"})
 # Large BQ results (500 rows of JSON) pollute context and cause hallucinations.
 _MAX_TOOL_RESULT_CHARS = 4000
 
+# Token tracking — toggle via env or at runtime
+TOKEN_TRACKING = os.getenv("TOKEN_TRACKING", "true").lower() in ("true", "1", "yes")
+
 
 # ---------------------------------------------------------------------------
 # Agent
@@ -90,6 +93,12 @@ class FinOpsAgent:
         self._client: genai.Client | None = None
         self._system_prompt: str = ""
         self._history: list[types.Content] = []
+        # Token tracking state
+        self._token_tracking = TOKEN_TRACKING
+        self._token_log: list[dict] = []   # per-turn records
+        self._total_prompt_tokens = 0
+        self._total_response_tokens = 0
+        self._total_tool_calls = 0
 
     # -- lifecycle ---------------------------------------------------------
 
@@ -253,6 +262,10 @@ class FinOpsAgent:
                 ),
             )
 
+            # --- token tracking ---
+            if self._token_tracking:
+                self._record_usage(response, round_num)
+
             candidate = response.candidates[0]
             parts = candidate.content.parts
 
@@ -350,6 +363,10 @@ class FinOpsAgent:
     def clear_history(self) -> None:
         """Reset conversation history for a new session."""
         self._history.clear()
+        self._token_log.clear()
+        self._total_prompt_tokens = 0
+        self._total_response_tokens = 0
+        self._total_tool_calls = 0
 
     @property
     def server_status(self) -> dict[str, bool]:
@@ -359,6 +376,72 @@ class FinOpsAgent:
     @property
     def tool_count(self) -> int:
         return len(self._tools)
+
+    # -- token tracking ----------------------------------------------------
+
+    def set_token_tracking(self, enabled: bool) -> None:
+        """Enable or disable token tracking at runtime."""
+        self._token_tracking = enabled
+        logger.info("Token tracking %s", "enabled" if enabled else "disabled")
+
+    def _record_usage(self, response, round_num: int) -> None:
+        """Extract and log token usage from a Gemini response."""
+        usage = getattr(response, "usage_metadata", None)
+        if not usage:
+            return
+
+        prompt_tokens = getattr(usage, "prompt_token_count", 0) or 0
+        response_tokens = getattr(usage, "candidates_token_count", 0) or 0
+        total_tokens = getattr(usage, "total_token_count", 0) or 0
+
+        # Some Gemini versions use different attr names
+        if not prompt_tokens:
+            prompt_tokens = getattr(usage, "prompt_tokens", 0) or 0
+        if not response_tokens:
+            response_tokens = getattr(usage, "completion_tokens", 0) or 0
+
+        self._total_prompt_tokens += prompt_tokens
+        self._total_response_tokens += response_tokens
+
+        # Count tool calls in this turn
+        fn_count = 0
+        try:
+            parts = response.candidates[0].content.parts
+            fn_count = sum(1 for p in parts if p.function_call)
+        except (IndexError, AttributeError):
+            pass
+        self._total_tool_calls += fn_count
+
+        record = {
+            "round": round_num + 1,
+            "prompt_tokens": prompt_tokens,
+            "response_tokens": response_tokens,
+            "total_tokens": total_tokens,
+            "tool_calls": fn_count,
+            "cumulative_prompt": self._total_prompt_tokens,
+            "cumulative_response": self._total_response_tokens,
+        }
+        self._token_log.append(record)
+
+        logger.info(
+            "Tokens [round %d]: prompt=%d, response=%d, total=%d | cumulative: %d+%d=%d",
+            round_num + 1, prompt_tokens, response_tokens, total_tokens,
+            self._total_prompt_tokens, self._total_response_tokens,
+            self._total_prompt_tokens + self._total_response_tokens,
+        )
+
+    @property
+    def token_usage(self) -> dict:
+        """Current session token usage summary."""
+        return {
+            "tracking_enabled": self._token_tracking,
+            "total_prompt_tokens": self._total_prompt_tokens,
+            "total_response_tokens": self._total_response_tokens,
+            "total_tokens": self._total_prompt_tokens + self._total_response_tokens,
+            "total_tool_calls": self._total_tool_calls,
+            "turns": len(self._token_log),
+            "per_turn": self._token_log,
+        }
 
 
 # ---------------------------------------------------------------------------
@@ -382,6 +465,7 @@ async def main() -> None:
             mark = "✓" if connected else "✗"
             print(f"  {mark} {name}")
         print(f"\n{agent.tool_count} tools available. Type 'quit' to exit.\n")
+        print("  Commands: 'clear' | 'tokens' | 'tracking on/off' | 'quit'\n")
 
         while True:
             try:
@@ -397,6 +481,27 @@ async def main() -> None:
             if user_input.lower() == "clear":
                 agent.clear_history()
                 print("History cleared.\n")
+                continue
+
+            if user_input.lower() == "tokens":
+                usage = agent.token_usage
+                print(f"\n--- Token Usage ---")
+                print(f"  Tracking:        {'ON' if usage['tracking_enabled'] else 'OFF'}")
+                print(f"  Prompt tokens:   {usage['total_prompt_tokens']:,}")
+                print(f"  Response tokens: {usage['total_response_tokens']:,}")
+                print(f"  Total tokens:    {usage['total_tokens']:,}")
+                print(f"  Tool calls:      {usage['total_tool_calls']}")
+                print(f"  Turns:           {usage['turns']}")
+                if usage['per_turn']:
+                    last = usage['per_turn'][-1]
+                    print(f"  Last turn:       prompt={last['prompt_tokens']:,}, response={last['response_tokens']:,}")
+                print()
+                continue
+
+            if user_input.lower() in ("tracking on", "tracking off"):
+                enabled = user_input.lower().endswith("on")
+                agent.set_token_tracking(enabled)
+                print(f"Token tracking {'enabled' if enabled else 'disabled'}.\n")
                 continue
 
             try:

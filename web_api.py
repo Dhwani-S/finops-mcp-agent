@@ -131,6 +131,10 @@ class StreamingAgent(FinOpsAgent):
                 yield {"event": "error", "data": json.dumps({"message": str(exc)})}
                 return
 
+            # --- token tracking ---
+            if self._token_tracking:
+                self._record_usage(response, round_num)
+
             candidate = response.candidates[0]
             parts = candidate.content.parts
             fn_calls = [p for p in parts if p.function_call]
@@ -144,7 +148,10 @@ class StreamingAgent(FinOpsAgent):
                 yield {"event": "text", "data": json.dumps({"content": prose})}
                 if elicitation:
                     yield {"event": "elicitation", "data": json.dumps(elicitation)}
-                yield {"event": "done", "data": json.dumps({"rounds": round_num + 1})}
+                done_data = {"rounds": round_num + 1}
+                if self._token_tracking:
+                    done_data["token_usage"] = self.token_usage
+                yield {"event": "done", "data": json.dumps(done_data)}
                 return
 
             # --- execute tool calls with streaming events ---
@@ -325,6 +332,25 @@ async def clear():
         return JSONResponse(status_code=503, content={"error": "Agent not ready"})
     _agent.clear_history()
     return {"status": "cleared"}
+
+
+@app.get("/api/tokens")
+async def tokens():
+    """Get current session token usage breakdown."""
+    if not _agent:
+        return JSONResponse(status_code=503, content={"error": "Agent not ready"})
+    return _agent.token_usage
+
+
+@app.post("/api/tokens/toggle")
+async def toggle_tokens(request: Request):
+    """Enable or disable token tracking. Body: {"enabled": true/false}"""
+    if not _agent:
+        return JSONResponse(status_code=503, content={"error": "Agent not ready"})
+    body = await request.json()
+    enabled = body.get("enabled", True)
+    _agent.set_token_tracking(bool(enabled))
+    return {"tracking_enabled": _agent._token_tracking}
 
 
 # ---------------------------------------------------------------------------
