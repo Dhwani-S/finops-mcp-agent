@@ -424,7 +424,241 @@ def calculate_growth(data_json: str, period: str = "MoM") -> str:
 
 
 # ---------------------------------------------------------------------------
-# Tool 4: score_recommendations
+# Tool 4: summarize_data
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def summarize_data(data_json: str, group_by: str = "", value_column: str = "") -> str:
+    """Summarize a large result set into aggregate statistics.
+
+    Use this INSTEAD of letting the LLM scan hundreds of rows manually.
+    Call after run_bq_query or run_sql_query to extract key numbers before
+    putting results into the conversation.
+
+    Returns: total, mean, median, min, max, count, std, top-N and bottom-N
+    rows by the value column, plus optional group-by aggregation.
+
+    Args:
+        data_json: JSON array of objects (pass raw tool output from run_bq_query / run_sql_query).
+        group_by: Optional column name to group by (e.g. "service_description", "project_name").
+                  When set, returns per-group totals sorted descending.
+        value_column: Column to aggregate. Auto-detected if empty — picks first column whose
+                      name contains cost, spend, savings, price, or amount.
+    """
+    data = _parse_data(data_json)
+    if not data:
+        return "Error: Could not parse data_json. Provide a JSON array of objects."
+    if len(data) == 0:
+        return json.dumps({"error": "Empty dataset", "row_count": 0})
+
+    sample = data[0]
+
+    # Auto-detect value column
+    if not value_column:
+        for k in sample:
+            if any(c in k.lower() for c in ("cost", "spend", "savings", "price", "amount", "total")):
+                value_column = k
+                break
+    if not value_column:
+        # Fall back to first numeric column
+        for k, v in sample.items():
+            if isinstance(v, (int, float)):
+                value_column = k
+                break
+    if not value_column:
+        return "Error: Could not find a numeric column to summarize. Specify value_column explicitly."
+
+    # Extract numeric values (skip nulls)
+    values = []
+    for row in data:
+        v = row.get(value_column)
+        if v is not None:
+            try:
+                values.append(float(v))
+            except (ValueError, TypeError):
+                pass
+
+    if not values:
+        return f"Error: No numeric values found in column '{value_column}'."
+
+    arr = np.array(values)
+
+    result: dict = {
+        "row_count": len(data),
+        "value_column": value_column,
+        "statistics": {
+            "total": round(float(np.sum(arr)), 2),
+            "mean": round(float(np.mean(arr)), 2),
+            "median": round(float(np.median(arr)), 2),
+            "std": round(float(np.std(arr, ddof=1)), 2) if len(arr) > 1 else 0.0,
+            "min": round(float(np.min(arr)), 2),
+            "max": round(float(np.max(arr)), 2),
+            "p25": round(float(np.percentile(arr, 25)), 2),
+            "p75": round(float(np.percentile(arr, 75)), 2),
+        },
+    }
+
+    # Top and bottom 5
+    indexed = [(i, v) for i, v in enumerate(values)]
+    indexed.sort(key=lambda x: x[1], reverse=True)
+    result["top_5"] = [data[i] for i, _ in indexed[:5]]
+    result["bottom_5"] = [data[i] for i, _ in indexed[-5:]]
+
+    # Group-by aggregation
+    if group_by and group_by in sample:
+        groups: dict[str, list[float]] = {}
+        for row in data:
+            key = str(row.get(group_by, "(null)"))
+            v = row.get(value_column)
+            if v is not None:
+                try:
+                    groups.setdefault(key, []).append(float(v))
+                except (ValueError, TypeError):
+                    pass
+
+        group_agg = []
+        for key, vals in groups.items():
+            group_agg.append({
+                "group": key,
+                "total": round(sum(vals), 2),
+                "count": len(vals),
+                "mean": round(sum(vals) / len(vals), 2),
+                "pct_of_total": round(sum(vals) / float(np.sum(arr)) * 100, 1) if float(np.sum(arr)) else 0,
+            })
+        group_agg.sort(key=lambda g: g["total"], reverse=True)
+        result["group_by"] = group_by
+        result["groups"] = group_agg[:25]  # Cap at 25 groups
+        result["total_groups"] = len(group_agg)
+
+    return json.dumps(result, default=str)
+
+
+# ---------------------------------------------------------------------------
+# Tool 5: compare_periods
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def compare_periods(period_a_json: str, period_b_json: str,
+                    value_column: str = "", label_column: str = "") -> str:
+    """Side-by-side comparison of two time periods with deltas and highlights.
+
+    Use this after running two separate queries (one per period) to produce
+    a unified comparison the LLM can present directly.
+
+    Returns: per-item comparison with absolute and percentage deltas,
+    plus summary totals and biggest movers.
+
+    Args:
+        period_a_json: JSON array for the baseline period (e.g. last month).
+        period_b_json: JSON array for the comparison period (e.g. this month).
+        value_column: Column to compare. Auto-detected if empty — picks first
+                      column whose name contains cost, spend, savings, price, or amount.
+        label_column: Column used as the join key / label (e.g. "service_description",
+                      "project_name"). Auto-detected if empty.
+    """
+    data_a = _parse_data(period_a_json)
+    data_b = _parse_data(period_b_json)
+    if not data_a or not data_b:
+        return "Error: Could not parse one or both period datasets."
+
+    sample = data_a[0]
+
+    # Auto-detect value column
+    if not value_column:
+        for k in sample:
+            if any(c in k.lower() for c in ("cost", "spend", "savings", "price", "amount", "total")):
+                value_column = k
+                break
+    if not value_column:
+        return "Error: Could not detect value column. Specify value_column explicitly."
+
+    # Auto-detect label column
+    if not label_column:
+        for k in sample:
+            if any(c in k.lower() for c in ("service", "project", "account", "subscription",
+                                              "team", "region", "environment", "category")):
+                label_column = k
+                break
+    if not label_column:
+        # Fall back to first string column that isn't the value column
+        for k, v in sample.items():
+            if k != value_column and isinstance(v, str):
+                label_column = k
+                break
+    if not label_column:
+        return "Error: Could not detect label column. Specify label_column explicitly."
+
+    # Build lookup maps
+    def _build_map(data: list[dict]) -> dict[str, float]:
+        m: dict[str, float] = {}
+        for row in data:
+            key = str(row.get(label_column, "(null)"))
+            try:
+                m[key] = m.get(key, 0) + float(row.get(value_column, 0))
+            except (ValueError, TypeError):
+                pass
+        return m
+
+    map_a = _build_map(data_a)
+    map_b = _build_map(data_b)
+    all_keys = sorted(set(map_a.keys()) | set(map_b.keys()))
+
+    comparisons = []
+    for key in all_keys:
+        val_a = map_a.get(key, 0.0)
+        val_b = map_b.get(key, 0.0)
+        delta = val_b - val_a
+        pct = round(delta / val_a * 100, 1) if val_a != 0 else None
+        comparisons.append({
+            "label": key,
+            "period_a": round(val_a, 2),
+            "period_b": round(val_b, 2),
+            "delta": round(delta, 2),
+            "pct_change": pct,
+            "direction": "increase" if delta > 0 else "decrease" if delta < 0 else "flat",
+        })
+
+    # Sort by absolute delta descending
+    comparisons.sort(key=lambda c: abs(c["delta"]), reverse=True)
+
+    total_a = round(sum(map_a.values()), 2)
+    total_b = round(sum(map_b.values()), 2)
+    total_delta = round(total_b - total_a, 2)
+    total_pct = round(total_delta / total_a * 100, 1) if total_a != 0 else None
+
+    # Biggest movers (top 5 increases and decreases)
+    increases = [c for c in comparisons if c["delta"] > 0][:5]
+    decreases = [c for c in comparisons if c["delta"] < 0][:5]
+
+    # New in period B (not in A)
+    new_items = [c for c in comparisons if c["period_a"] == 0 and c["period_b"] > 0]
+    # Dropped from period A (not in B)
+    dropped_items = [c for c in comparisons if c["period_b"] == 0 and c["period_a"] > 0]
+
+    return json.dumps({
+        "label_column": label_column,
+        "value_column": value_column,
+        "summary": {
+            "total_period_a": total_a,
+            "total_period_b": total_b,
+            "total_delta": total_delta,
+            "total_pct_change": total_pct,
+            "items_compared": len(comparisons),
+            "items_increased": len([c for c in comparisons if c["delta"] > 0]),
+            "items_decreased": len([c for c in comparisons if c["delta"] < 0]),
+            "new_items": len(new_items),
+            "dropped_items": len(dropped_items),
+        },
+        "biggest_increases": increases,
+        "biggest_decreases": decreases,
+        "new_items": new_items[:10],
+        "dropped_items": dropped_items[:10],
+        "all_comparisons": comparisons[:50],
+    }, default=str)
+
+
+# ---------------------------------------------------------------------------
+# Tool 6: score_recommendations
 # ---------------------------------------------------------------------------
 
 @mcp.tool()

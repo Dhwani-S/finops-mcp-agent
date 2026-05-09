@@ -402,6 +402,77 @@ def run_bq_query(sql: str, org_wide_confirmed: bool = False) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Tool: dry_run_bq_query
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def dry_run_bq_query(sql: str) -> str:
+    """Validate a BigQuery SQL query and estimate bytes scanned WITHOUT executing it.
+
+    Use this BEFORE run_bq_query when:
+    - The query might be expensive (org-wide, large date ranges, no LIMIT)
+    - You want to catch syntax errors cheaply
+    - You want to preview estimated cost before committing
+
+    Returns estimated bytes to be scanned and approximate cost at $6.25/TB.
+    Does NOT execute the query or return any data.
+
+    Args:
+        sql: BigQuery Standard SQL query to validate.
+    """
+    client = _init_bq_client()
+    if not client:
+        return "Error: BigQuery client not initialized. Check credentials and GCP_PROJECT_ID."
+
+    error = _validate_sql(sql)
+    if error:
+        return f"Error: {error}"
+
+    try:
+        from google.cloud import bigquery as bq
+
+        job_config = bq.QueryJobConfig(dry_run=True, use_query_cache=False)
+        job = client.query(sql.strip().rstrip(";"), job_config=job_config)
+
+        bytes_est = job.total_bytes_processed or 0
+        gb = bytes_est / (1024 ** 3)
+        tb = bytes_est / (1024 ** 4)
+        cost_est = tb * 6.25  # On-demand pricing: $6.25/TB
+
+        status = "ok"
+        if bytes_est > MAX_BYTES_BILLED:
+            status = "blocked"
+        elif gb > 100:
+            status = "expensive"
+        elif gb > 10:
+            status = "moderate"
+
+        return json.dumps({
+            "status": status,
+            "bytes_estimated": bytes_est,
+            "gb_estimated": round(gb, 2),
+            "cost_estimated_usd": round(cost_est, 4),
+            "max_bytes_allowed": MAX_BYTES_BILLED,
+            "message": (
+                f"Query would scan ~{round(gb, 1)} GB (~${round(cost_est, 3)}). "
+                + ("BLOCKED: exceeds 500 GB cap." if status == "blocked" else "Safe to execute.")
+            ),
+        })
+
+    except Exception as e:
+        error_str = str(e)
+        # BQ dry run errors usually contain the syntax error details
+        if "Syntax error" in error_str or "Unrecognized name" in error_str:
+            return json.dumps({
+                "status": "syntax_error",
+                "error": error_str,
+                "message": "Fix the SQL syntax and try again.",
+            })
+        logger.exception("BQ dry run failed")
+        return f"Error: Dry run failed — {e}"
+
+
+# ---------------------------------------------------------------------------
 # Resources: table schemas (static files)
 # ---------------------------------------------------------------------------
 
