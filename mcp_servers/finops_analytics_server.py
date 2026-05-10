@@ -107,7 +107,7 @@ def _extract_time_series(data: list[dict], date_key: str = "date",
 def detect_anomalies(
     data_json: str = Field(description="JSON array of objects with date and numeric value fields. Min 7 data points."),
     method: str = Field(default="z_score", description='Detection method — "z_score" or "iqr"'),
-    sensitivity: float = Field(default=2.5, gt=0, description="Threshold — lower = more sensitive. For z_score: std deviations. For iqr: IQR multiplier."),
+    sensitivity: float = Field(default=2.5, ge=0.1, description="Threshold — lower = more sensitive. For z_score: std deviations. For iqr: IQR multiplier."),
 ) -> str:
     """Detect anomalies in time-series cost data using statistical methods.
 
