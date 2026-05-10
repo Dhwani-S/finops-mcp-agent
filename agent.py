@@ -99,6 +99,7 @@ class FinOpsAgent:
         # Token tracking state
         self._token_tracking = TOKEN_TRACKING
         self._trace = SessionTrace()
+        self._cached_content: str | None = None  # Gemini context cache name
 
     # -- lifecycle ---------------------------------------------------------
 
@@ -111,12 +112,34 @@ class FinOpsAgent:
         await self._connect_servers()
         await self._discover_tools()
         self._system_prompt = await self._build_system_prompt()
+        await self._create_context_cache()
 
         logger.info(
             "Agent ready — %d tools across %d servers",
             len(self._tools),
             len(self._sessions),
         )
+
+    async def _create_context_cache(self) -> None:
+        """Create a Gemini context cache for the system prompt + tools."""
+        try:
+            cache = self._client.caches.create(
+                model=MODEL,
+                config=types.CreateCachedContentConfig(
+                    system_instruction=self._system_prompt,
+                    tools=(
+                        [types.Tool(function_declarations=self._tools)]
+                        if self._tools
+                        else None
+                    ),
+                    ttl="3600s",
+                ),
+            )
+            self._cached_content = cache.name
+            logger.info("Context cache created: %s", cache.name)
+        except Exception as exc:
+            logger.warning("Context caching unavailable, falling back to inline: %s", exc)
+            self._cached_content = None
 
     async def stop(self) -> None:
         """Shut down all MCP server subprocesses."""
@@ -255,10 +278,13 @@ class FinOpsAgent:
                 model=MODEL,
                 contents=self._history,
                 config=types.GenerateContentConfig(
-                    system_instruction=self._system_prompt,
+                    cached_content=self._cached_content,
+                    system_instruction=(
+                        self._system_prompt if not self._cached_content else None
+                    ),
                     tools=(
                         [types.Tool(function_declarations=self._tools)]
-                        if self._tools
+                        if self._tools and not self._cached_content
                         else None
                     ),
                     temperature=0.1,
