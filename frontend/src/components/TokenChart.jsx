@@ -1,9 +1,14 @@
 import { useMemo } from 'react'
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip,
+  AreaChart, Area, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid,
 } from 'recharts'
 import './TokenChart.css'
+
+/* ── Color palette (max separation on dark bg) ── */
+const COL_CACHED   = '#22d3c9'   // teal  — matches --accent-2
+const COL_UNCACHED = '#f59e0b'   // amber — warm contrast
+const COL_RESPONSE = '#8b5cf6'   // violet — cool but distinct
 
 function formatTokens(n) {
   if (n == null || n === 0) return '0'
@@ -20,14 +25,16 @@ function CustomTooltip({ active, payload, label }) {
     <div className="token-chart-tooltip">
       <p className="token-chart-tooltip-label">{label}</p>
       {d.cached > 0 && (
-        <p style={{ color: '#10b981' }}>Cached: {formatTokens(d.cached)}</p>
+        <p style={{ color: COL_CACHED }}>Cached: {formatTokens(d.cached)}</p>
       )}
-      <p style={{ color: '#6366f1' }}>Uncached: {formatTokens(d.uncached)}</p>
-      <p style={{ color: '#22d3ee' }}>Response: {formatTokens(d.response)}</p>
+      <p style={{ color: COL_UNCACHED }}>Uncached: {formatTokens(d.uncached)}</p>
+      <p style={{ color: COL_RESPONSE }}>Response: {formatTokens(d.response)}</p>
       <p className="token-chart-tooltip-total">
         Total: {formatTokens(d.prompt + d.response)}
         {d.cached > 0 && (
-          <span className="token-chart-tooltip-pct"> ({Math.round((d.cached / d.prompt) * 100)}% cached)</span>
+          <span className="token-chart-tooltip-pct">
+            {' '}({Math.round((d.cached / d.prompt) * 100)}% cached)
+          </span>
         )}
       </p>
     </div>
@@ -49,9 +56,9 @@ export default function TokenChart({ messages }) {
       msgIdx++
 
       const tu = msg.tokenUsage
-      const prompt = Math.max(0, (tu.total_prompt_tokens || 0) - prevPrompt)
+      const prompt   = Math.max(0, (tu.total_prompt_tokens || 0) - prevPrompt)
       const response = Math.max(0, (tu.total_response_tokens || 0) - prevResponse)
-      const cached = Math.max(0, (tu.total_cached_tokens || 0) - prevCached)
+      const cached   = Math.max(0, (tu.total_cached_tokens || 0) - prevCached)
       const uncached = Math.max(0, prompt - cached)
 
       points.push({
@@ -65,9 +72,9 @@ export default function TokenChart({ messages }) {
         tools: tu.total_tool_calls || 0,
       })
 
-      prevPrompt = tu.total_prompt_tokens || 0
+      prevPrompt  = tu.total_prompt_tokens || 0
       prevResponse = tu.total_response_tokens || 0
-      prevCached = tu.total_cached_tokens || 0
+      prevCached   = tu.total_cached_tokens || 0
     }
 
     return points
@@ -78,11 +85,8 @@ export default function TokenChart({ messages }) {
   const totalTokens = data[data.length - 1]?.cumulative || 0
   const totalCached = data.reduce((s, d) => s + d.cached, 0)
   const totalRounds = data.reduce((s, d) => s + d.rounds, 0)
-  const totalTools = data.reduce((s, d) => s + d.tools, 0)
+  const totalTools  = data.reduce((s, d) => s + d.tools, 0)
   const cachePct = totalTokens > 0 ? Math.round((totalCached / totalTokens) * 100) : 0
-
-  // Dynamic bar width: wider when fewer data points
-  const barSize = data.length <= 3 ? 48 : data.length <= 6 ? 36 : undefined
 
   return (
     <div className="token-chart-panel">
@@ -112,9 +116,24 @@ export default function TokenChart({ messages }) {
       </div>
 
       <div className="token-chart-container">
-        <ResponsiveContainer width="100%" height={100}>
-          <BarChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }} barCategoryGap={data.length <= 3 ? '30%' : '20%'}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" vertical={false} />
+        <ResponsiveContainer width="100%" height={110}>
+          <AreaChart data={data} margin={{ top: 4, right: 12, left: 0, bottom: 0 }}>
+            <defs>
+              <linearGradient id="gradCached" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%"   stopColor={COL_CACHED} stopOpacity={0.45} />
+                <stop offset="100%" stopColor={COL_CACHED} stopOpacity={0.05} />
+              </linearGradient>
+              <linearGradient id="gradUncached" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%"   stopColor={COL_UNCACHED} stopOpacity={0.45} />
+                <stop offset="100%" stopColor={COL_UNCACHED} stopOpacity={0.05} />
+              </linearGradient>
+              <linearGradient id="gradResponse" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%"   stopColor={COL_RESPONSE} stopOpacity={0.4} />
+                <stop offset="100%" stopColor={COL_RESPONSE} stopOpacity={0.05} />
+              </linearGradient>
+            </defs>
+
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
             <XAxis
               dataKey="name"
               tick={{ fill: 'var(--text-secondary)', fontSize: 10 }}
@@ -128,24 +147,52 @@ export default function TokenChart({ messages }) {
               tickLine={false}
               width={42}
             />
-            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'color-mix(in srgb, var(--accent) 8%, transparent)' }} />
-            <Bar dataKey="cached" stackId="a" fill="var(--chart-5, #10b981)" radius={[0, 0, 0, 0]} barSize={barSize} />
-            <Bar dataKey="uncached" stackId="a" fill="var(--chart-1, #6366f1)" radius={[3, 3, 0, 0]} barSize={barSize} />
-          </BarChart>
+            <Tooltip content={<CustomTooltip />} />
+            <Area
+              type="monotone"
+              dataKey="cached"
+              stackId="1"
+              stroke={COL_CACHED}
+              strokeWidth={2}
+              fill="url(#gradCached)"
+              dot={{ r: 3, fill: COL_CACHED, strokeWidth: 0 }}
+              activeDot={{ r: 5, strokeWidth: 2, stroke: '#fff' }}
+            />
+            <Area
+              type="monotone"
+              dataKey="uncached"
+              stackId="1"
+              stroke={COL_UNCACHED}
+              strokeWidth={2}
+              fill="url(#gradUncached)"
+              dot={{ r: 3, fill: COL_UNCACHED, strokeWidth: 0 }}
+              activeDot={{ r: 5, strokeWidth: 2, stroke: '#fff' }}
+            />
+            <Area
+              type="monotone"
+              dataKey="response"
+              stackId="1"
+              stroke={COL_RESPONSE}
+              strokeWidth={2}
+              fill="url(#gradResponse)"
+              dot={{ r: 3, fill: COL_RESPONSE, strokeWidth: 0 }}
+              activeDot={{ r: 5, strokeWidth: 2, stroke: '#fff' }}
+            />
+          </AreaChart>
         </ResponsiveContainer>
       </div>
 
       <div className="token-chart-legend">
         <span className="token-legend-item">
-          <span className="token-legend-dot" style={{ background: 'var(--chart-5, #10b981)' }} />
+          <span className="token-legend-dot" style={{ background: COL_CACHED }} />
           Cached
         </span>
         <span className="token-legend-item">
-          <span className="token-legend-dot" style={{ background: 'var(--chart-1, #6366f1)' }} />
+          <span className="token-legend-dot" style={{ background: COL_UNCACHED }} />
           Uncached
         </span>
         <span className="token-legend-item">
-          <span className="token-legend-dot" style={{ background: 'var(--chart-2, #22d3ee)' }} />
+          <span className="token-legend-dot" style={{ background: COL_RESPONSE }} />
           Response
         </span>
       </div>

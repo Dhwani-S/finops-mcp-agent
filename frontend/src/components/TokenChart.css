@@ -1,8 +1,11 @@
 .token-chart-panel {
-  padding: 0.6rem 0.85rem 0.5rem;
+  margin-top: 0.45rem;
+  padding: 0.65rem 0.85rem 0.5rem;
   background: var(--bg-elevated);
+  border-top: 1px solid var(--border-subtle);
   border-bottom: 1px solid var(--border-subtle);
-  animation: tokenChartSlide 0.2s ease;
+  border-radius: 0 0 10px 10px;
+  animation: tokenChartSlide 0.25s ease;
 }
 
 @keyframes tokenChartSlide {
@@ -51,14 +54,14 @@
 }
 
 .token-stat-cached .token-stat-value {
-  color: var(--chart-5, #10b981);
+  color: #22d3c9;
 }
 
 /* ── Chart area ── */
 
 .token-chart-container {
   width: 100%;
-  height: 100px;
+  height: 110px;
 }
 
 /* ── Legend ── */
@@ -118,6 +121,6 @@
 
 .token-chart-tooltip-pct {
   font-weight: 400;
-  color: var(--chart-5, #10b981);
+  color: #22d3c9;
   font-size: 0.7rem;
 }
