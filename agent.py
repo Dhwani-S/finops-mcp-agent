@@ -122,8 +122,20 @@ class FinOpsAgent:
         )
 
     async def _create_context_cache(self) -> None:
-        """Create a Gemini context cache for the system prompt + tools."""
+        """Create or reuse a Gemini context cache for the system prompt + tools."""
         try:
+            # Check for an existing cache for this model
+            existing = self._client.caches.list(
+                config=types.ListCachedContentsConfig(page_size=100)
+            )
+            model_suffix = MODEL.split("/")[-1]  # e.g. "gemini-2.5-pro"
+            for cached in existing:
+                if model_suffix in (cached.model or ""):
+                    self._cached_content = cached.name
+                    logger.info("Reusing existing context cache: %s", cached.name)
+                    return
+
+            # No existing cache — create one
             cache = self._client.caches.create(
                 model=MODEL,
                 config=types.CreateCachedContentConfig(
