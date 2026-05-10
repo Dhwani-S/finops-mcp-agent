@@ -463,3 +463,19 @@ Added keyword-based tool routing (`_route_query()`) that maps query keywords to 
 1. **`detect_anomalies` JSON pass-through:** The model copies ~1700 chars of BQ JSON into `data_json` string argument. This is fragile — any LLM typo in the copy breaks parsing. Mitigated with JSON repair, but the root cause is the tool API design (should accept structured data, not a JSON string).
 2. **Azure recommendations data:** Only 1 cost recommendation exists in the latest snapshot with no savings estimate. Other categories (Security, Performance, HighAvailability) return 0 rows for the latest date. This is a data issue, not an agent issue.
 3. **Proactive follow-up inconsistency:** Sometimes the agent proactively suggests next steps (e.g., "check reservations"), sometimes it just asks generic "anything else?" — depends on LLM mood.
+
+### Post-Fix Run (15 queries, after JSON repair + routing revert)
+
+| Metric | Baseline | With routing | After fix | Per-query (fix vs base) |
+|--------|----------|-------------|-----------|------------------------|
+| Total tokens | 1.7M (20q) | 1.6M (21q) | **1.3M (15q)** | 87K vs 85K (≈same) |
+| LLM rounds | 450 | 492 | **276** | 18.4 vs 22.5 (-18%) |
+| Tool calls | 240 | 261 | **160** | 10.7 vs 12.0 (-11%) |
+| Cache rate | 88% | 73% | **83%** | recovered |
+
+**Improvements confirmed:**
+- `detect_anomalies` succeeded — model generated clean JSON, correct anomaly result ($874K spike on Apr 29)
+- Self-healing on wrong param: model called `format_currency(json_data=...)` (wrong param name) → got Pydantic error → immediately retried with correct `data_json` param. Clear error messages enable natural retry.
+- Cache rate recovered to 83% after routing revert (vs 73% with routing)
+- Agent added smart partial-month disclaimer: "This Month reflects a partial month's spend to date, so the decrease shown is expected"
+- Proactive follow-up still inconsistent (didn't suggest reservations for Azure recs — non-deterministic LLM behavior)
