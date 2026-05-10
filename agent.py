@@ -100,6 +100,7 @@ class FinOpsAgent:
         self._token_tracking = TOKEN_TRACKING
         self._trace = SessionTrace()
         self._cached_content: str | None = None  # Gemini context cache name
+        self._auto_approve_queries = False
 
     # -- lifecycle ---------------------------------------------------------
 
@@ -418,6 +419,7 @@ class FinOpsAgent:
         """Reset conversation history for a new session."""
         self._history.clear()
         self._trace.clear()
+        self._auto_approve_queries = False
 
     @property
     def server_status(self) -> dict[str, bool]:

@@ -351,8 +351,17 @@ async def chat(request: Request):
     if not message:
         return JSONResponse(status_code=400, content={"error": "Empty message"})
 
+    # Check for "Accept all for session" response and set flag
+    if message.lower() in ("accept all for session", "accept all"):
+        _agent._auto_approve_queries = True
+
+    # Inject auto-approve context so the LLM knows to skip dry-runs
+    effective_message = message
+    if _agent._auto_approve_queries:
+        effective_message = f"[auto_approve_queries=true]\n{message}"
+
     async def event_generator():
-        async for event in _agent.chat_stream(message):
+        async for event in _agent.chat_stream(effective_message):
             yield event
 
     return EventSourceResponse(event_generator())
