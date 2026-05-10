@@ -133,7 +133,10 @@ function App() {
           break
         case 'done':
           msg.loading = false
-          if (data.token_usage) setTokenUsage(data.token_usage)
+          if (data.token_usage) {
+            setTokenUsage(data.token_usage)
+            msg.tokenUsage = data.token_usage
+          }
           break
       }
       updated[lastIdx] = msg

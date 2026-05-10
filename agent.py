@@ -124,9 +124,13 @@ class FinOpsAgent:
     async def _create_context_cache(self) -> None:
         """Create or reuse a Gemini context cache for the system prompt + tools."""
         try:
-            # Check for an existing cache for this model
-            existing = self._client.caches.list(
-                config=types.ListCachedContentsConfig(page_size=100)
+            # Run in thread to avoid blocking the event loop, with timeout
+            existing = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self._client.caches.list,
+                    config=types.ListCachedContentsConfig(page_size=100),
+                ),
+                timeout=15,
             )
             model_suffix = MODEL.split("/")[-1]  # e.g. "gemini-2.5-pro"
             for cached in existing:
@@ -136,20 +140,27 @@ class FinOpsAgent:
                     return
 
             # No existing cache — create one
-            cache = self._client.caches.create(
-                model=MODEL,
-                config=types.CreateCachedContentConfig(
-                    system_instruction=self._system_prompt,
-                    tools=(
-                        [types.Tool(function_declarations=self._tools)]
-                        if self._tools
-                        else None
+            cache = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self._client.caches.create,
+                    model=MODEL,
+                    config=types.CreateCachedContentConfig(
+                        system_instruction=self._system_prompt,
+                        tools=(
+                            [types.Tool(function_declarations=self._tools)]
+                            if self._tools
+                            else None
+                        ),
+                        ttl="3600s",
                     ),
-                    ttl="3600s",
                 ),
+                timeout=30,
             )
             self._cached_content = cache.name
             logger.info("Context cache created: %s", cache.name)
+        except asyncio.TimeoutError:
+            logger.warning("Context caching timed out, falling back to inline")
+            self._cached_content = None
         except Exception as exc:
             logger.warning("Context caching unavailable, falling back to inline: %s", exc)
             self._cached_content = None
@@ -457,6 +468,7 @@ class FinOpsAgent:
 
         prompt_tokens = getattr(usage, "prompt_token_count", 0) or 0
         response_tokens = getattr(usage, "candidates_token_count", 0) or 0
+        cached_tokens = getattr(usage, "cached_content_token_count", 0) or 0
         total_tokens = getattr(usage, "total_token_count", 0) or 0
 
         # Some Gemini versions use different attr names
@@ -466,8 +478,8 @@ class FinOpsAgent:
             response_tokens = getattr(usage, "completion_tokens", 0) or 0
 
         logger.info(
-            "Tokens: prompt=%d, response=%d, total=%d | cumulative: %d+%d=%d",
-            prompt_tokens, response_tokens, total_tokens,
+            "Tokens: prompt=%d, cached=%d, response=%d, total=%d | cumulative: %d+%d=%d",
+            prompt_tokens, cached_tokens, response_tokens, total_tokens,
             self._trace.total_prompt_tokens + prompt_tokens,
             self._trace.total_response_tokens + response_tokens,
             self._trace.total_tokens + prompt_tokens + response_tokens,
@@ -476,6 +488,7 @@ class FinOpsAgent:
         return TokenUsage(
             prompt_tokens=prompt_tokens,
             response_tokens=response_tokens,
+            cached_tokens=cached_tokens,
             total_tokens=total_tokens,
         )
 

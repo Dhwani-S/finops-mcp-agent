@@ -28,6 +28,7 @@ class TokenUsage(BaseModel):
 
     prompt_tokens: int = 0
     response_tokens: int = 0
+    cached_tokens: int = 0
     total_tokens: int = 0
 
 
@@ -47,6 +48,7 @@ class SessionTrace(BaseModel):
     turns: list[TurnTrace] = Field(default_factory=list)
     total_prompt_tokens: int = 0
     total_response_tokens: int = 0
+    total_cached_tokens: int = 0
     total_tool_calls: int = 0
 
     def record_turn(self, turn: TurnTrace) -> None:
@@ -54,6 +56,7 @@ class SessionTrace(BaseModel):
         self.turns.append(turn)
         self.total_prompt_tokens += turn.tokens.prompt_tokens
         self.total_response_tokens += turn.tokens.response_tokens
+        self.total_cached_tokens += turn.tokens.cached_tokens
         self.total_tool_calls += len(turn.tool_calls)
 
     @property
@@ -70,6 +73,7 @@ class SessionTrace(BaseModel):
             "tracking_enabled": True,
             "total_prompt_tokens": self.total_prompt_tokens,
             "total_response_tokens": self.total_response_tokens,
+            "total_cached_tokens": self.total_cached_tokens,
             "total_tokens": self.total_tokens,
             "total_tool_calls": self.total_tool_calls,
             "turns": self.turn_count,
@@ -78,6 +82,7 @@ class SessionTrace(BaseModel):
                     "round": t.round,
                     "prompt_tokens": t.tokens.prompt_tokens,
                     "response_tokens": t.tokens.response_tokens,
+                    "cached_tokens": t.tokens.cached_tokens,
                     "total_tokens": t.tokens.total_tokens,
                     "tool_calls": len(t.tool_calls),
                     "tools_used": [tc.tool for tc in t.tool_calls],
@@ -98,4 +103,5 @@ class SessionTrace(BaseModel):
         self.turns.clear()
         self.total_prompt_tokens = 0
         self.total_response_tokens = 0
+        self.total_cached_tokens = 0
         self.total_tool_calls = 0

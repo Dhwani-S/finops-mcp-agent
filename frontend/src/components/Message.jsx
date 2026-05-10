@@ -5,6 +5,7 @@ import ToolEvent from './ToolEvent'
 import ReasoningBlock from './ReasoningBlock'
 import ChartView, { extractChartData } from './ChartView'
 import ElicitationInput, { ElicitationGroup } from './ElicitationInput'
+import ChatTrace from './ChatTrace'
 import './Message.css'
 
 /**
@@ -386,7 +387,7 @@ function OptionChips({ options, onOptionClick, disabled }) {
 }
 
 export default function Message({ message, onOptionClick, disabled, chartMode }) {
-  const { role, content, events, loading, elicitation } = message
+  const { role, content, events, loading, elicitation, tokenUsage } = message
   const [showChart, setShowChart] = useState(false)
 
   // Track if this message had content on first mount (i.e. loaded from history)
@@ -479,6 +480,7 @@ export default function Message({ message, onOptionClick, disabled, chartMode })
       {hasCharts && (chartMode || showChart) && chartDataList.map((cd, i) => (
         <ChartView key={i} chartData={cd} />
       ))}
+      {!loading && tokenUsage && <ChatTrace tokenUsage={tokenUsage} />}
       {loading && !content && !(events && events.length > 0) && (
         <div className="message-loading">
           <div className="loading-dots">
