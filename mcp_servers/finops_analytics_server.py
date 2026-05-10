@@ -59,9 +59,34 @@ def _load_resource_file(relative_path: str) -> str:
 
 
 def _parse_data(data_json: str) -> list[dict] | None:
-    """Parse JSON string into list of dicts. Returns None on failure."""
+    """Parse JSON string into list of dicts with basic JSON repair.
+    
+    LLMs sometimes introduce minor typos when re-serializing JSON
+    (e.g., stray periods, trailing commas). This attempts repair
+    before giving up.
+    """
+    if not isinstance(data_json, str):
+        return data_json if isinstance(data_json, list) else None
+
+    # First try: direct parse
     try:
-        data = json.loads(data_json) if isinstance(data_json, str) else data_json
+        data = json.loads(data_json)
+        if isinstance(data, list):
+            return data
+        return None
+    except (json.JSONDecodeError, TypeError):
+        pass
+
+    # Second try: repair common LLM JSON typos
+    import re
+    repaired = data_json
+    repaired = re.sub(r',\.\s*"', ', "', repaired)   # ",. " → ", "
+    repaired = re.sub(r',\s*,', ',', repaired)        # double commas
+    repaired = re.sub(r',\s*([}\]])', r'\1', repaired) # trailing commas
+    repaired = re.sub(r'([}\]])\s*([{\[])', r'\1,\2', repaired)  # missing comma between objects
+
+    try:
+        data = json.loads(repaired)
         if isinstance(data, list):
             return data
         return None
@@ -138,11 +163,11 @@ def detect_anomalies(
     """
     data = _parse_data(data_json)
     if not data:
-        return "Error: Could not parse data_json. Provide a JSON array of objects."
+        return "Error: Could not parse data_json. The JSON may have a typo. RETRY: re-call this tool with carefully re-serialized JSON. Ensure valid JSON array of objects with date and numeric value fields."
 
     ts = _extract_time_series(data)
     if ts is None:
-        return "Error: Could not extract time series. Ensure data has date and numeric value fields."
+        return "Error: Could not extract time series. Ensure each object has a date field (date/day/dateTime/period/month) and a numeric field (spend/cost/value/amount/total_cost/total_spend). RETRY with corrected field names."
 
     dates, values = ts
 

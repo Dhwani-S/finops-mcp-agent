@@ -28,7 +28,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from sse_starlette.sse import EventSourceResponse
 from google.genai import types
 
-from agent import FinOpsAgent, MODEL, MAX_TOOL_ROUNDS, _route_query
+from agent import FinOpsAgent, MODEL, MAX_TOOL_ROUNDS
 from trace import TurnTrace, ToolCallTrace, TokenUsage
 
 # ---------------------------------------------------------------------------
@@ -112,23 +112,14 @@ class StreamingAgent(FinOpsAgent):
             )
         )
 
-        active_tools = self._get_filtered_tools(user_message)
-        routed = _route_query(user_message)
-        routed_servers = sorted(routed) if routed else sorted(self._tools_by_server.keys())
-
         yield {"event": "thinking", "data": json.dumps({"message": "Understanding your question..."})}
-        yield {"event": "tool_routing", "data": json.dumps({
-            "servers": routed_servers,
-            "active_tools": len(active_tools),
-            "total_tools": len(self._tools),
-        })}
 
         for round_num in range(MAX_TOOL_ROUNDS):
             turn_start = time.time()
             turn = TurnTrace(
                 round=round_num + 1,
-                active_tools_count=len(active_tools),
-                routed_servers=routed_servers,
+                active_tools_count=len(self._tools),
+                routed_servers=sorted(self._tools_by_server.keys()),
             )
 
             try:
@@ -138,8 +129,8 @@ class StreamingAgent(FinOpsAgent):
                     config=types.GenerateContentConfig(
                         system_instruction=self._system_prompt,
                         tools=(
-                            [types.Tool(function_declarations=active_tools)]
-                            if active_tools
+                            [types.Tool(function_declarations=self._tools)]
+                            if self._tools
                             else None
                         ),
                         temperature=0.1,

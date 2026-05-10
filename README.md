@@ -416,3 +416,50 @@ tmp = path + ".tmp"
 write(tmp, content)
 os.replace(tmp, path)  # atomic on same filesystem
 ```
+
+---
+
+## Testing & Optimization Findings (May 10, 2026)
+
+### Baseline Metrics (20 queries, no tool routing)
+
+| Metric | Value |
+|--------|-------|
+| Total tokens | 1.7M |
+| LLM rounds | 450 |
+| Tool calls | 240 |
+| Cached tokens | 1.5M (88%) |
+| Tokens/query | ~85K |
+
+### Tool Routing Experiment
+
+Added keyword-based tool routing (`_route_query()`) that maps query keywords to relevant MCP servers, reducing the tool set per query (e.g., GCP query → only BQ+Analytics = 14 tools instead of 24).
+
+**Result (21 queries):** Total tokens dropped to 1.6M (-6%), tokens/query to ~76K (-10%). But cache hit rate dropped from 88% → 73% because changing the tool set breaks Gemini's implicit cache prefix matching. Net effect: **~25% more expensive** in effective tokens.
+
+**Decision:** Reverted tool routing. The cache penalty outweighs the tool-count savings. Keeping all 24 tools always preserves the cacheable prefix. Code remains in `agent.py` (behind `_route_query`) but is not called.
+
+### Determinism Analysis
+
+**Highly deterministic (consistent across runs):**
+- Scope enforcement (SCOPE REQUIRED guardrail triggers every time)
+- Dry-run before execution for BQ queries
+- Identity lookup flow (core_id → user → projects)
+- Final dollar amounts (identical across runs)
+- Correct server selection (BQ for GCP, SQL for Azure, File for reports)
+
+**Acceptably non-deterministic:**
+- SQL column aliases (`total_cost` vs `spend`) — both work
+- Query strategy (UNION ALL vs `run_multi_cloud_cost_query`) — different approach, same result
+- Post-processing tool choice (`format_currency` vs `convert_to_chart_data`)
+
+**Problematically non-deterministic (fixed):**
+- JSON serialization bugs: LLM re-serializes BQ result JSON as string arg to analytics tools, occasionally introduces typos (e.g., stray `.` in JSON). **Fix:** Added JSON repair in `_parse_data()`.
+- No retry on tool failure: agent says "I'll correct it" but doesn't retry. **Fix:** Added 1-retry logic in agent loop.
+- Inconsistent report formatting (download links vs plain bullets) — presentation-level, not data-level.
+
+### Known Issues
+
+1. **`detect_anomalies` JSON pass-through:** The model copies ~1700 chars of BQ JSON into `data_json` string argument. This is fragile — any LLM typo in the copy breaks parsing. Mitigated with JSON repair, but the root cause is the tool API design (should accept structured data, not a JSON string).
+2. **Azure recommendations data:** Only 1 cost recommendation exists in the latest snapshot with no savings estimate. Other categories (Security, Performance, HighAvailability) return 0 rows for the latest date. This is a data issue, not an agent issue.
+3. **Proactive follow-up inconsistency:** Sometimes the agent proactively suggests next steps (e.g., "check reservations"), sometimes it just asks generic "anything else?" — depends on LLM mood.
