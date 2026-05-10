@@ -33,6 +33,28 @@ function ActionIcon({ name }) {
   )
 }
 
+function TokenIcon() {
+  return (
+    <svg
+      width={13} height={13} viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 6v12" />
+      <path d="M8 10h8" />
+      <path d="M8 14h8" />
+    </svg>
+  )
+}
+
+function formatTokens(n) {
+  if (n == null) return '0'
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
+  return String(n)
+}
+
 function formatUpdated(d) {
   if (!d) return null
   try {
@@ -47,7 +69,7 @@ function formatUpdated(d) {
   }
 }
 
-export default function StatusBar({ status, statusUpdatedAt, onClear, onExport, hasMessages }) {
+export default function StatusBar({ status, statusUpdatedAt, onClear, onExport, hasMessages, tokenUsage }) {
   const updatedStr = formatUpdated(statusUpdatedAt)
 
   if (!status) {
@@ -94,6 +116,12 @@ export default function StatusBar({ status, statusUpdatedAt, onClear, onExport, 
         )}
       </div>
       <div className="status-bar-actions">
+        {tokenUsage && tokenUsage.total_tokens > 0 && (
+          <span className="token-badge" title={`Prompt: ${formatTokens(tokenUsage.total_prompt_tokens)} | Response: ${formatTokens(tokenUsage.total_response_tokens)} | Tool calls: ${tokenUsage.total_tool_calls || 0}`}>
+            <TokenIcon />
+            {formatTokens(tokenUsage.total_tokens)}
+          </span>
+        )}
         {hasMessages && (
           <button type="button" className="btn-clear" onClick={onExport} title="Copy conversation to clipboard">
             <ActionIcon name="copy" />

@@ -36,6 +36,7 @@ function App() {
   const [scopeManagerOpen, setScopeManagerOpen] = useState(false)
   const [status, setStatus] = useState(null)
   const [statusUpdatedAt, setStatusUpdatedAt] = useState(null)
+  const [tokenUsage, setTokenUsage] = useState(null)
   const [theme, setTheme] = useState(() => {
     try {
       const t = localStorage.getItem(THEME_STORAGE_KEY)
@@ -132,6 +133,7 @@ function App() {
           break
         case 'done':
           msg.loading = false
+          if (data.token_usage) setTokenUsage(data.token_usage)
           break
       }
       updated[lastIdx] = msg
@@ -247,6 +249,7 @@ function App() {
   const handleClear = async () => {
     await fetch('/api/clear', { method: 'POST' })
     updateActiveMessages(() => [])
+    setTokenUsage(null)
   }
 
   const handleExport = async () => {
@@ -351,7 +354,7 @@ function App() {
                 Plain-language questions about cloud spend—breakdowns, trends, anomalies, and savings ideas.
               </p>
             </div>
-            <StatusBar status={status} statusUpdatedAt={statusUpdatedAt} onClear={handleClear} onExport={handleExport} hasMessages={messages.length > 0} />
+            <StatusBar status={status} statusUpdatedAt={statusUpdatedAt} onClear={handleClear} onExport={handleExport} hasMessages={messages.length > 0} tokenUsage={tokenUsage} />
           </header>
           <main className="app-main">
             <MessageList
