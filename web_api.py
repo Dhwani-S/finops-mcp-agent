@@ -17,6 +17,7 @@ import asyncio
 import json
 import logging
 import os
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -28,6 +29,7 @@ from sse_starlette.sse import EventSourceResponse
 from google.genai import types
 
 from agent import FinOpsAgent, MODEL, MAX_TOOL_ROUNDS
+from trace import TurnTrace, ToolCallTrace, TokenUsage
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -113,6 +115,9 @@ class StreamingAgent(FinOpsAgent):
         yield {"event": "thinking", "data": json.dumps({"message": "Understanding your question..."})}
 
         for round_num in range(MAX_TOOL_ROUNDS):
+            turn_start = time.time()
+            turn = TurnTrace(round=round_num + 1)
+
             try:
                 response = self._client.models.generate_content(
                     model=MODEL,
@@ -133,7 +138,7 @@ class StreamingAgent(FinOpsAgent):
 
             # --- token tracking ---
             if self._token_tracking:
-                self._record_usage(response, round_num)
+                turn.tokens = self._extract_usage(response)
 
             candidate = response.candidates[0]
             parts = candidate.content.parts
@@ -148,6 +153,10 @@ class StreamingAgent(FinOpsAgent):
                 yield {"event": "text", "data": json.dumps({"content": prose})}
                 if elicitation:
                     yield {"event": "elicitation", "data": json.dumps(elicitation)}
+                turn.has_text_response = True
+                turn.duration_ms = (time.time() - turn_start) * 1000
+                if self._token_tracking:
+                    self._trace.record_turn(turn)
                 done_data = {"rounds": round_num + 1}
                 if self._token_tracking:
                     done_data["token_usage"] = self.token_usage
@@ -171,6 +180,7 @@ class StreamingAgent(FinOpsAgent):
             async def _run_batch(server, calls):
                 for idx, fc in calls:
                     args = dict(fc.args) if fc.args else {}
+                    tool_start = time.time()
                     await event_queue.put({
                         "event": "tool_call",
                         "data": json.dumps({
@@ -180,8 +190,10 @@ class StreamingAgent(FinOpsAgent):
                         }, default=str),
                     })
 
+                    error_msg = None
                     if not server or server not in self._sessions:
                         result_text = f"Server '{server}' not available"
+                        error_msg = result_text
                     else:
                         try:
                             result = await self._sessions[server].call_tool(
@@ -193,16 +205,29 @@ class StreamingAgent(FinOpsAgent):
                                 else "No result"
                             )
                             if result.isError:
+                                error_msg = result_text
                                 result_text = f"Tool error: {result_text}"
                         except Exception as exc:
                             result_text = f"Error: {exc}"
+                            error_msg = result_text
 
+                    truncated = len(result_text) > 2000
                     # Truncate for SSE display (full result goes to Gemini)
                     display_text = (
                         result_text[:2000] + "..."
-                        if len(result_text) > 2000
+                        if truncated
                         else result_text
                     )
+
+                    turn.tool_calls.append(ToolCallTrace(
+                        tool=fc.name,
+                        server=server or "unknown",
+                        args=args,
+                        result_chars=len(result_text),
+                        truncated=truncated,
+                        error=error_msg,
+                        duration_ms=(time.time() - tool_start) * 1000,
+                    ))
 
                     await event_queue.put({
                         "event": "tool_result",
@@ -230,6 +255,10 @@ class StreamingAgent(FinOpsAgent):
             self._history.append(
                 types.Content(role="user", parts=fn_responses)
             )
+
+            turn.duration_ms = (time.time() - turn_start) * 1000
+            if self._token_tracking:
+                self._trace.record_turn(turn)
 
             yield {
                 "event": "thinking",

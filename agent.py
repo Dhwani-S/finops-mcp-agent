@@ -21,6 +21,7 @@ import json
 import logging
 import os
 import sys
+import time
 from contextlib import AsyncExitStack
 from pathlib import Path
 
@@ -29,6 +30,8 @@ from google import genai
 from google.genai import types
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
+
+from trace import SessionTrace, TurnTrace, ToolCallTrace, TokenUsage
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -95,10 +98,7 @@ class FinOpsAgent:
         self._history: list[types.Content] = []
         # Token tracking state
         self._token_tracking = TOKEN_TRACKING
-        self._token_log: list[dict] = []   # per-turn records
-        self._total_prompt_tokens = 0
-        self._total_response_tokens = 0
-        self._total_tool_calls = 0
+        self._trace = SessionTrace()
 
     # -- lifecycle ---------------------------------------------------------
 
@@ -248,6 +248,9 @@ class FinOpsAgent:
         )
 
         for round_num in range(MAX_TOOL_ROUNDS):
+            turn_start = time.time()
+            turn = TurnTrace(round=round_num + 1)
+
             response = self._client.models.generate_content(
                 model=MODEL,
                 contents=self._history,
@@ -264,7 +267,7 @@ class FinOpsAgent:
 
             # --- token tracking ---
             if self._token_tracking:
-                self._record_usage(response, round_num)
+                turn.tokens = self._extract_usage(response)
 
             candidate = response.candidates[0]
             parts = candidate.content.parts
@@ -275,6 +278,10 @@ class FinOpsAgent:
                 # Pure text response — return it
                 text = "".join(p.text for p in parts if p.text) or ""
                 self._history.append(candidate.content)
+                turn.has_text_response = True
+                turn.duration_ms = (time.time() - turn_start) * 1000
+                if self._token_tracking:
+                    self._trace.record_turn(turn)
                 return text
 
             # --- execute tool calls ---
@@ -294,12 +301,21 @@ class FinOpsAgent:
                                  calls: list[tuple[int, types.FunctionCall]]) -> None:
                 """Run calls sequentially within one server."""
                 for idx, fc in calls:
+                    tc = ToolCallTrace(
+                        tool=fc.name,
+                        server=server or "unknown",
+                    )
+                    call_start = time.time()
+
                     if not server:
                         result_text = f"Unknown tool: {fc.name}"
+                        tc.error = result_text
                     elif server not in self._sessions:
                         result_text = f"Server '{server}' is not connected"
+                        tc.error = result_text
                     else:
                         args = dict(fc.args) if fc.args else {}
+                        tc.args = args
                         logger.info(
                             "→ [%s] %s(%s)",
                             server,
@@ -317,10 +333,14 @@ class FinOpsAgent:
                             )
                             if result.isError:
                                 result_text = f"Tool error: {result_text}"
+                                tc.error = result_text
                         except Exception as exc:
                             result_text = f"Error calling {fc.name}: {exc}"
+                            tc.error = result_text
 
                         logger.info("← %d chars", len(result_text))
+
+                    tc.result_chars = len(result_text)
 
                     # Truncate large results to prevent context window pollution
                     if len(result_text) > _MAX_TOOL_RESULT_CHARS:
@@ -340,6 +360,10 @@ class FinOpsAgent:
                         except (json.JSONDecodeError, TypeError):
                             truncated += "\n\n[TRUNCATED — result too large to show in full.]"
                         result_text = truncated
+                        tc.truncated = True
+
+                    tc.duration_ms = (time.time() - call_start) * 1000
+                    turn.tool_calls.append(tc)
 
                     fn_responses[idx] = types.Part.from_function_response(
                         name=fc.name,
@@ -355,6 +379,10 @@ class FinOpsAgent:
                 types.Content(role="user", parts=fn_responses)
             )
 
+            turn.duration_ms = (time.time() - turn_start) * 1000
+            if self._token_tracking:
+                self._trace.record_turn(turn)
+
         return (
             "Reached maximum tool-calling rounds. "
             "Please try a simpler or more specific query."
@@ -363,10 +391,7 @@ class FinOpsAgent:
     def clear_history(self) -> None:
         """Reset conversation history for a new session."""
         self._history.clear()
-        self._token_log.clear()
-        self._total_prompt_tokens = 0
-        self._total_response_tokens = 0
-        self._total_tool_calls = 0
+        self._trace.clear()
 
     @property
     def server_status(self) -> dict[str, bool]:
@@ -384,11 +409,11 @@ class FinOpsAgent:
         self._token_tracking = enabled
         logger.info("Token tracking %s", "enabled" if enabled else "disabled")
 
-    def _record_usage(self, response, round_num: int) -> None:
-        """Extract and log token usage from a Gemini response."""
+    def _extract_usage(self, response) -> TokenUsage:
+        """Extract token usage from a Gemini response into a Pydantic model."""
         usage = getattr(response, "usage_metadata", None)
         if not usage:
-            return
+            return TokenUsage()
 
         prompt_tokens = getattr(usage, "prompt_token_count", 0) or 0
         response_tokens = getattr(usage, "candidates_token_count", 0) or 0
@@ -400,48 +425,31 @@ class FinOpsAgent:
         if not response_tokens:
             response_tokens = getattr(usage, "completion_tokens", 0) or 0
 
-        self._total_prompt_tokens += prompt_tokens
-        self._total_response_tokens += response_tokens
-
-        # Count tool calls in this turn
-        fn_count = 0
-        try:
-            parts = response.candidates[0].content.parts
-            fn_count = sum(1 for p in parts if p.function_call)
-        except (IndexError, AttributeError):
-            pass
-        self._total_tool_calls += fn_count
-
-        record = {
-            "round": round_num + 1,
-            "prompt_tokens": prompt_tokens,
-            "response_tokens": response_tokens,
-            "total_tokens": total_tokens,
-            "tool_calls": fn_count,
-            "cumulative_prompt": self._total_prompt_tokens,
-            "cumulative_response": self._total_response_tokens,
-        }
-        self._token_log.append(record)
-
         logger.info(
-            "Tokens [round %d]: prompt=%d, response=%d, total=%d | cumulative: %d+%d=%d",
-            round_num + 1, prompt_tokens, response_tokens, total_tokens,
-            self._total_prompt_tokens, self._total_response_tokens,
-            self._total_prompt_tokens + self._total_response_tokens,
+            "Tokens: prompt=%d, response=%d, total=%d | cumulative: %d+%d=%d",
+            prompt_tokens, response_tokens, total_tokens,
+            self._trace.total_prompt_tokens + prompt_tokens,
+            self._trace.total_response_tokens + response_tokens,
+            self._trace.total_tokens + prompt_tokens + response_tokens,
+        )
+
+        return TokenUsage(
+            prompt_tokens=prompt_tokens,
+            response_tokens=response_tokens,
+            total_tokens=total_tokens,
         )
 
     @property
     def token_usage(self) -> dict:
         """Current session token usage summary."""
-        return {
-            "tracking_enabled": self._token_tracking,
-            "total_prompt_tokens": self._total_prompt_tokens,
-            "total_response_tokens": self._total_response_tokens,
-            "total_tokens": self._total_prompt_tokens + self._total_response_tokens,
-            "total_tool_calls": self._total_tool_calls,
-            "turns": len(self._token_log),
-            "per_turn": self._token_log,
-        }
+        if not self._token_tracking:
+            return {"tracking_enabled": False}
+        return self._trace.summary()
+
+    @property
+    def trace(self) -> SessionTrace:
+        """Access the full Pydantic trace object."""
+        return self._trace
 
 
 # ---------------------------------------------------------------------------
@@ -485,8 +493,10 @@ async def main() -> None:
 
             if user_input.lower() == "tokens":
                 usage = agent.token_usage
+                if not usage.get("tracking_enabled"):
+                    print("\n  Token tracking is OFF. Use 'tracking on' to enable.\n")
+                    continue
                 print(f"\n--- Token Usage ---")
-                print(f"  Tracking:        {'ON' if usage['tracking_enabled'] else 'OFF'}")
                 print(f"  Prompt tokens:   {usage['total_prompt_tokens']:,}")
                 print(f"  Response tokens: {usage['total_response_tokens']:,}")
                 print(f"  Total tokens:    {usage['total_tokens']:,}")
@@ -494,7 +504,10 @@ async def main() -> None:
                 print(f"  Turns:           {usage['turns']}")
                 if usage['per_turn']:
                     last = usage['per_turn'][-1]
-                    print(f"  Last turn:       prompt={last['prompt_tokens']:,}, response={last['response_tokens']:,}")
+                    tools = ", ".join(last.get("tools_used", []))
+                    print(f"  Last turn:       prompt={last['prompt_tokens']:,}, response={last['response_tokens']:,}, {last['duration_ms']}ms")
+                    if tools:
+                        print(f"  Last tools:      {tools}")
                 print()
                 continue
 
