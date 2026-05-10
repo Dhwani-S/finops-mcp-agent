@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip,
-  ResponsiveContainer, CartesianGrid, Cell,
+  ResponsiveContainer, CartesianGrid,
 } from 'recharts'
 import './TokenChart.css'
 
@@ -19,12 +19,17 @@ function CustomTooltip({ active, payload, label }) {
   return (
     <div className="token-chart-tooltip">
       <p className="token-chart-tooltip-label">{label}</p>
-      <p style={{ color: 'var(--chart-1, #6366f1)' }}>Prompt: {formatTokens(d.prompt)}</p>
-      <p style={{ color: 'var(--chart-2, #22d3ee)' }}>Response: {formatTokens(d.response)}</p>
       {d.cached > 0 && (
-        <p style={{ color: 'var(--chart-5, #10b981)' }}>Cached: {formatTokens(d.cached)}</p>
+        <p style={{ color: '#10b981' }}>Cached: {formatTokens(d.cached)}</p>
       )}
-      <p className="token-chart-tooltip-total">Total: {formatTokens(d.prompt + d.response)}</p>
+      <p style={{ color: '#6366f1' }}>Uncached: {formatTokens(d.uncached)}</p>
+      <p style={{ color: '#22d3ee' }}>Response: {formatTokens(d.response)}</p>
+      <p className="token-chart-tooltip-total">
+        Total: {formatTokens(d.prompt + d.response)}
+        {d.cached > 0 && (
+          <span className="token-chart-tooltip-pct"> ({Math.round((d.cached / d.prompt) * 100)}% cached)</span>
+        )}
+      </p>
     </div>
   )
 }
@@ -44,15 +49,17 @@ export default function TokenChart({ messages }) {
       msgIdx++
 
       const tu = msg.tokenUsage
-      const prompt = (tu.total_prompt_tokens || 0) - prevPrompt
-      const response = (tu.total_response_tokens || 0) - prevResponse
-      const cached = (tu.total_cached_tokens || 0) - prevCached
+      const prompt = Math.max(0, (tu.total_prompt_tokens || 0) - prevPrompt)
+      const response = Math.max(0, (tu.total_response_tokens || 0) - prevResponse)
+      const cached = Math.max(0, (tu.total_cached_tokens || 0) - prevCached)
+      const uncached = Math.max(0, prompt - cached)
 
       points.push({
         name: `Q${msgIdx}`,
-        prompt: Math.max(0, prompt),
-        response: Math.max(0, response),
-        cached: Math.max(0, cached),
+        prompt,
+        uncached,
+        cached,
+        response,
         cumulative: tu.total_tokens || 0,
         rounds: tu.turns || 0,
         tools: tu.total_tool_calls || 0,
@@ -72,8 +79,10 @@ export default function TokenChart({ messages }) {
   const totalCached = data.reduce((s, d) => s + d.cached, 0)
   const totalRounds = data.reduce((s, d) => s + d.rounds, 0)
   const totalTools = data.reduce((s, d) => s + d.tools, 0)
+  const cachePct = totalTokens > 0 ? Math.round((totalCached / totalTokens) * 100) : 0
 
-  const maxBar = Math.max(...data.map((d) => d.prompt + d.response))
+  // Dynamic bar width: wider when fewer data points
+  const barSize = data.length <= 3 ? 48 : data.length <= 6 ? 36 : undefined
 
   return (
     <div className="token-chart-panel">
@@ -97,14 +106,14 @@ export default function TokenChart({ messages }) {
         {totalCached > 0 && (
           <div className="token-stat token-stat-cached">
             <span className="token-stat-value">{formatTokens(totalCached)}</span>
-            <span className="token-stat-label">cached</span>
+            <span className="token-stat-label">{cachePct}% cached</span>
           </div>
         )}
       </div>
 
       <div className="token-chart-container">
-        <ResponsiveContainer width="100%" height={110}>
-          <BarChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }} barGap={2}>
+        <ResponsiveContainer width="100%" height={100}>
+          <BarChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }} barCategoryGap={data.length <= 3 ? '30%' : '20%'}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" vertical={false} />
             <XAxis
               dataKey="name"
@@ -117,35 +126,28 @@ export default function TokenChart({ messages }) {
               tick={{ fill: 'var(--text-secondary)', fontSize: 10 }}
               axisLine={false}
               tickLine={false}
-              width={45}
-              domain={[0, maxBar * 1.1]}
+              width={42}
             />
             <Tooltip content={<CustomTooltip />} cursor={{ fill: 'color-mix(in srgb, var(--accent) 8%, transparent)' }} />
-            <Bar dataKey="prompt" stackId="a" fill="var(--chart-1, #6366f1)" radius={[0, 0, 0, 0]} maxBarSize={40}>
-              {data.map((_, i) => (
-                <Cell key={i} radius={data[i].response > 0 ? [0, 0, 0, 0] : [3, 3, 0, 0]} />
-              ))}
-            </Bar>
-            <Bar dataKey="response" stackId="a" fill="var(--chart-2, #22d3ee)" radius={[3, 3, 0, 0]} maxBarSize={40} />
+            <Bar dataKey="cached" stackId="a" fill="var(--chart-5, #10b981)" radius={[0, 0, 0, 0]} barSize={barSize} />
+            <Bar dataKey="uncached" stackId="a" fill="var(--chart-1, #6366f1)" radius={[3, 3, 0, 0]} barSize={barSize} />
           </BarChart>
         </ResponsiveContainer>
       </div>
 
       <div className="token-chart-legend">
         <span className="token-legend-item">
+          <span className="token-legend-dot" style={{ background: 'var(--chart-5, #10b981)' }} />
+          Cached
+        </span>
+        <span className="token-legend-item">
           <span className="token-legend-dot" style={{ background: 'var(--chart-1, #6366f1)' }} />
-          Prompt
+          Uncached
         </span>
         <span className="token-legend-item">
           <span className="token-legend-dot" style={{ background: 'var(--chart-2, #22d3ee)' }} />
           Response
         </span>
-        {totalCached > 0 && (
-          <span className="token-legend-item">
-            <span className="token-legend-dot" style={{ background: 'var(--chart-5, #10b981)' }} />
-            Cached
-          </span>
-        )}
       </div>
     </div>
   )

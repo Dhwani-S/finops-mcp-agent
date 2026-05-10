@@ -58,7 +58,7 @@
 
 .token-chart-container {
   width: 100%;
-  height: 110px;
+  height: 100px;
 }
 
 /* ── Legend ── */
@@ -114,4 +114,10 @@
   border-top: 1px solid var(--border-subtle);
   padding-top: 0.2rem;
   margin-top: 0.2rem !important;
+}
+
+.token-chart-tooltip-pct {
+  font-weight: 400;
+  color: var(--chart-5, #10b981);
+  font-size: 0.7rem;
 }
