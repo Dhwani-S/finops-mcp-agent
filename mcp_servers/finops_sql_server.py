@@ -27,6 +27,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
+from pydantic import Field
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -208,11 +209,11 @@ _VALID_IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 @mcp.tool()
 def sql_list_dimension_values(
-    table_name: str,
-    column: str,
-    filter_term: str = "",
-    schema_name: str = "reporting",
-    limit: int = 25,
+    table_name: str = Field(description="Table name (e.g. azure_recommendations, k8_cost_tracking_integrated)"),
+    column: str = Field(description="Column name to look up distinct values for (e.g. project_name, service_name)"),
+    filter_term: str = Field(default="", description="Optional text filter — returns only values containing this term (case-insensitive). Leave empty for all values."),
+    schema_name: str = Field(default="reporting", description='Schema name. Use "dbo" for K8s tables.'),
+    limit: int = Field(default=25, ge=1, le=100, description="Max number of distinct values to return"),
 ) -> str:
     """Look up distinct values for a column in a SQL Server table.
 
@@ -296,7 +297,10 @@ def sql_list_dimension_values(
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
-def run_sql_query(sql: str, org_wide_confirmed: bool = False) -> str:
+def run_sql_query(
+    sql: str = Field(description="T-SQL query string. Use [schema].[table] notation."),
+    org_wide_confirmed: bool = Field(default=False, description="Set to true ONLY after the user has explicitly confirmed they want organization-wide data"),
+) -> str:
     """Execute a read-only T-SQL query against the FinOps SQL Server database.
 
     DATA SCOPE: Azure/AWS recommendations, K8s costs, observability costs, identity mappings.
@@ -392,7 +396,10 @@ def run_sql_query(sql: str, org_wide_confirmed: bool = False) -> str:
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
-def get_table_schema(table_name: str, schema_name: str = "reporting") -> str:
+def get_table_schema(
+    table_name: str = Field(description='Table name (e.g. "azure_recommendations")'),
+    schema_name: str = Field(default="reporting", description='Schema name. Use "dbo" for K8s tables without schema prefix.'),
+) -> str:
     """Discover the schema (columns, types, nullable) of a SQL Server table.
 
     Use this before writing queries to learn the exact column names and types.
@@ -455,8 +462,8 @@ def get_table_schema(table_name: str, schema_name: str = "reporting") -> str:
 
 @mcp.tool()
 def lookup_identity(
-    search_term: str,
-    search_by: str = "name",
+    search_term: str = Field(description="The value to search for (person name, core_id, or project name)"),
+    search_by: str = Field(default="name", description='What field to search. One of: "name", "core_id", "project".'),
 ) -> str:
     """Look up user-to-project mappings from the identity table.
 

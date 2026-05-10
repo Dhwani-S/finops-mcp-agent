@@ -25,6 +25,7 @@ from pathlib import Path
 import numpy as np
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
+from pydantic import Field
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -103,8 +104,11 @@ def _extract_time_series(data: list[dict], date_key: str = "date",
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
-def detect_anomalies(data_json: str, method: str = "z_score",
-                     sensitivity: float = 2.5) -> str:
+def detect_anomalies(
+    data_json: str = Field(description="JSON array of objects with date and numeric value fields. Min 7 data points."),
+    method: str = Field(default="z_score", description='Detection method — "z_score" or "iqr"'),
+    sensitivity: float = Field(default=2.5, gt=0, description="Threshold — lower = more sensitive. For z_score: std deviations. For iqr: IQR multiplier."),
+) -> str:
     """Detect anomalies in time-series cost data using statistical methods.
 
     DO NOT call this with raw BQ/SQL query results directly. First transform the query output
@@ -223,8 +227,11 @@ def detect_anomalies(data_json: str, method: str = "z_score",
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
-def forecast(data_json: str, periods_ahead: int = 7,
-             method: str = "linear") -> str:
+def forecast(
+    data_json: str = Field(description="JSON array of objects with date and value fields, sorted chronologically. Min 7 data points."),
+    periods_ahead: int = Field(default=7, ge=1, le=90, description="Number of future periods to forecast"),
+    method: str = Field(default="linear", description='"linear" (linear regression) or "ema" (exponential moving average)'),
+) -> str:
     """Forecast future cost values from historical time-series data.
 
     DO NOT call this with raw BQ/SQL query results directly. First transform the query output
@@ -355,7 +362,10 @@ def forecast(data_json: str, periods_ahead: int = 7,
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
-def calculate_growth(data_json: str, period: str = "MoM") -> str:
+def calculate_growth(
+    data_json: str = Field(description="JSON array of objects with period label and numeric value. Min 2 data points."),
+    period: str = Field(default="MoM", description='Growth period type — "MoM", "WoW", "QoQ", or "YoY"'),
+) -> str:
     """Calculate growth rates between periods in cost data.
 
     DO NOT call this with raw daily cost data. First aggregate your query results into
@@ -438,7 +448,11 @@ def calculate_growth(data_json: str, period: str = "MoM") -> str:
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
-def summarize_data(data_json: str, group_by: str = "", value_column: str = "") -> str:
+def summarize_data(
+    data_json: str = Field(description="JSON array of objects (pass raw tool output from run_bq_query / run_sql_query)"),
+    group_by: str = Field(default="", description='Optional column name to group by (e.g. "service_description", "project_name")'),
+    value_column: str = Field(default="", description="Column to aggregate. Auto-detected if empty."),
+) -> str:
     """Summarize a large result set into aggregate statistics.
 
     Use this INSTEAD of letting the LLM scan hundreds of rows manually.
@@ -553,8 +567,12 @@ def summarize_data(data_json: str, group_by: str = "", value_column: str = "") -
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
-def compare_periods(period_a_json: str, period_b_json: str,
-                    value_column: str = "", label_column: str = "") -> str:
+def compare_periods(
+    period_a_json: str = Field(description="JSON array for the baseline period (e.g. last month)"),
+    period_b_json: str = Field(description="JSON array for the comparison period (e.g. this month)"),
+    value_column: str = Field(default="", description="Column to compare. Auto-detected if empty."),
+    label_column: str = Field(default="", description='Column used as the join key / label (e.g. "service_description"). Auto-detected if empty.'),
+) -> str:
     """Side-by-side comparison of two time periods with deltas and highlights.
 
     Use this after running two separate queries (one per period) to produce
@@ -683,7 +701,9 @@ def compare_periods(period_a_json: str, period_b_json: str,
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
-def score_recommendations(recommendations_json: str) -> str:
+def score_recommendations(
+    recommendations_json: str = Field(description="JSON array of recommendation objects. Each should have estimated_monthly_savings (numeric)."),
+) -> str:
     """Score and rank cost optimization recommendations deterministically.
 
     Scores each recommendation by: savings_potential × confidence × (1/effort).
@@ -748,7 +768,10 @@ def score_recommendations(recommendations_json: str) -> str:
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
-def validate_results(data_json: str, query_context: str = "") -> str:
+def validate_results(
+    data_json: str = Field(description="JSON array of result rows from a cost query (pass the raw tool output)"),
+    query_context: str = Field(default="", description='Optional description of the query for better diagnostics (e.g. "GCP costs by service for March 2026")'),
+) -> str:
     """Post-query sanity checks on cost data results.
 
     Call this after run_bq_query or run_sql_query when dealing with large or critical datasets.
@@ -866,8 +889,12 @@ def validate_results(data_json: str, query_context: str = "") -> str:
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
-def format_currency(data_json: str, columns: str = "", locale: str = "en_US",
-                    abbreviate: bool = True) -> str:
+def format_currency(
+    data_json: str = Field(description="JSON array of objects (pass raw tool output from a query or summarize_data)"),
+    columns: str = Field(default="", description='Comma-separated column names to format (e.g. "total_cost,savings"). Auto-detects if empty.'),
+    locale: str = Field(default="en_US", description="Locale for formatting"),
+    abbreviate: bool = Field(default=True, description="If true, use abbreviations ($1.2K, $3.5M). If false, use full numbers."),
+) -> str:
     """Format numeric cost columns into consistent, human-readable currency strings.
 
     Use this to normalize money values before presenting results to users.
@@ -940,9 +967,12 @@ def format_currency(data_json: str, columns: str = "", locale: str = "en_US",
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
-def convert_to_chart_data(data_json: str, label_column: str = "",
-                          value_columns: str = "",
-                          chart_title: str = "") -> str:
+def convert_to_chart_data(
+    data_json: str = Field(description="JSON array of objects (raw query results)"),
+    label_column: str = Field(default="", description='Column to use as chart labels / x-axis (e.g. "service_description"). Auto-detected if empty.'),
+    value_columns: str = Field(default="", description='Comma-separated numeric columns to chart (e.g. "total_cost,previous_cost"). Auto-detected if empty.'),
+    chart_title: str = Field(default="", description="Optional title for the chart"),
+) -> str:
     """Convert query results into the exact structure the frontend ChartView expects.
 
     The frontend auto-detects chart data from tool_result events. This tool ensures

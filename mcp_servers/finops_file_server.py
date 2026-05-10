@@ -20,6 +20,7 @@ import os
 from pathlib import Path 
 
 from mcp.server.fastmcp import FastMCP 
+from pydantic import Field
 
 mcp = FastMCP("FinOps-File-Server")
 
@@ -46,7 +47,10 @@ def _safe_path(relative: str) -> Path:
 
 # Tool implementations
 @mcp.tool()
-def write_file(path: str, content: str) -> str:
+def write_file(
+    path: str = Field(description="Relative path within the reports sandbox (e.g. 'monthly/report.md')"),
+    content: str = Field(description="File content to write"),
+) -> str:
     """Save or overwrite a file in the reports sandbox. Atomic write (temp + rename).
 
     Use for: markdown reports, text files, JSON files.
@@ -64,7 +68,10 @@ def write_file(path: str, content: str) -> str:
     return f"Written: {path} ({len(content)} chars)"
 
 @mcp.tool()
-def append_file(path: str, content: str) -> str:
+def append_file(
+    path: str = Field(description="Relative path to an existing file in the reports sandbox"),
+    content: str = Field(description="Content to append to the file"),
+) -> str:
     """Append content to an existing file in the reports sandbox."""
     target = _safe_path(path)
     if not target.exists():
@@ -77,7 +84,9 @@ def append_file(path: str, content: str) -> str:
     return f"Appended: {path} ({len(content)} chars)"
 
 @mcp.tool()
-def read_file(path: str) -> str:
+def read_file(
+    path: str = Field(description="Relative path to a file in the reports sandbox"),
+) -> str:
     """Read a file from the reports sandbox."""
     target = _safe_path(path)
     if not target.exists():
@@ -85,7 +94,9 @@ def read_file(path: str) -> str:
     return target.read_text(encoding="utf-8")
 
 @mcp.tool()
-def list_files(subdir: str = "") -> str:
+def list_files(
+    subdir: str = Field(default="", description="Optional subdirectory to list within the sandbox. Empty string lists the root."),
+) -> str:
     """List files and folders in the reports sandbox (non-recursive, one level only).
     
     Args:
@@ -102,7 +113,9 @@ def list_files(subdir: str = "") -> str:
     return "\n".join(entries) if entries else "(empty)"
 
 @mcp.tool()
-def delete_file(path: str) -> str:
+def delete_file(
+    path: str = Field(description="Relative path to a file in the reports sandbox to delete"),
+) -> str:
     """Delete a file from the reports sandbox. Cannot delete directories."""
     target = _safe_path(path)
     if not target.exists():
@@ -113,7 +126,10 @@ def delete_file(path: str) -> str:
     return f"Deleted: {path}"
 
 @mcp.tool()
-def export_csv(filename: str, json_data: str) -> str:
+def export_csv(
+    filename: str = Field(description="Output filename (e.g. 'costs_april.csv'). Saved in reports/ sandbox."),
+    json_data: str = Field(description="JSON string of array of objects, e.g. '[{\"service\":\"EC2\",\"cost\":1234}]'"),
+) -> str:
     """Convert JSON array of objects to CSV and save in the reports sandbox.
 
     Use this instead of write_file when you have structured JSON data (e.g., query results)

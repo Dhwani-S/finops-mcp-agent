@@ -26,6 +26,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
+from pydantic import Field
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -226,10 +227,10 @@ _ALLOWED_TABLES = {
 
 @mcp.tool()
 def bq_list_dimension_values(
-    table: str,
-    column: str,
-    filter_term: str = "",
-    limit: int = 25,
+    table: str = Field(description="Fully qualified BQ table (e.g. cie-costmanagement-803717.gcp.daily_usage_costs)"),
+    column: str = Field(description="Column name to look up distinct values for (e.g. cpe_project_name, service_description)"),
+    filter_term: str = Field(default="", description="Optional text filter — returns only values containing this term (case-insensitive). Leave empty to list all values."),
+    limit: int = Field(default=25, ge=1, le=100, description="Max number of distinct values to return"),
 ) -> str:
     """Look up distinct values for a column in a BigQuery cost table.
 
@@ -333,7 +334,10 @@ def bq_list_dimension_values(
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
-def run_bq_query(sql: str, org_wide_confirmed: bool = False) -> str:
+def run_bq_query(
+    sql: str = Field(description="BigQuery Standard SQL query string. Must use fully qualified table names."),
+    org_wide_confirmed: bool = Field(default=False, description="Set to true ONLY after the user has explicitly confirmed they want organization-wide data"),
+) -> str:
     """Execute a read-only BigQuery SQL query against FinOps cost data.
 
     DATA SCOPE: GCP costs, AWS costs, Azure costs, utilization metrics, GCP recommendations.
@@ -441,7 +445,9 @@ def run_bq_query(sql: str, org_wide_confirmed: bool = False) -> str:
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
-def dry_run_bq_query(sql: str) -> str:
+def dry_run_bq_query(
+    sql: str = Field(description="BigQuery Standard SQL query to validate and estimate cost for"),
+) -> str:
     """Validate a BigQuery SQL query and estimate bytes scanned WITHOUT executing it.
 
     Use this BEFORE run_bq_query when:
@@ -512,7 +518,9 @@ def dry_run_bq_query(sql: str) -> str:
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
-def get_bq_table_schema(table: str) -> str:
+def get_bq_table_schema(
+    table: str = Field(description="Fully qualified BQ table name (e.g. cie-costmanagement-803717.gcp.daily_usage_costs)"),
+) -> str:
     """Discover the schema (columns, types, descriptions) of a BigQuery table at runtime.
 
     Use this when you need to verify exact column names before writing a query,
@@ -568,11 +576,11 @@ def get_bq_table_schema(table: str) -> str:
 
 @mcp.tool()
 def run_multi_cloud_cost_query(
-    aws_sql: str = "",
-    azure_sql: str = "",
-    gcp_sql: str = "",
-    top_n: int = 10,
-    sort_by: str = "cost",
+    aws_sql: str = Field(default="", description="BigQuery SQL for AWS cost data. Leave empty to skip AWS."),
+    azure_sql: str = Field(default="", description="BigQuery SQL for Azure cost data. Leave empty to skip Azure."),
+    gcp_sql: str = Field(default="", description="BigQuery SQL for GCP cost data. Leave empty to skip GCP."),
+    top_n: int = Field(default=10, ge=1, le=100, description="Number of top rows to return in the unified result"),
+    sort_by: str = Field(default="cost", description="Column name to sort by descending"),
 ) -> str:
     """Execute cost queries across multiple clouds and return ONE unified, aggregated result.
 
