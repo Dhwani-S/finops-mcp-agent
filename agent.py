@@ -99,7 +99,6 @@ class FinOpsAgent:
         # Token tracking state
         self._token_tracking = TOKEN_TRACKING
         self._trace = SessionTrace()
-        self._cached_content: str | None = None  # Gemini context cache name
         self._auto_approve_queries = False
 
     # -- lifecycle ---------------------------------------------------------
@@ -113,57 +112,12 @@ class FinOpsAgent:
         await self._connect_servers()
         await self._discover_tools()
         self._system_prompt = await self._build_system_prompt()
-        await self._create_context_cache()
 
         logger.info(
             "Agent ready — %d tools across %d servers",
             len(self._tools),
             len(self._sessions),
         )
-
-    async def _create_context_cache(self) -> None:
-        """Create or reuse a Gemini context cache for the system prompt + tools."""
-        try:
-            # Run in thread to avoid blocking the event loop, with timeout
-            existing = await asyncio.wait_for(
-                asyncio.to_thread(
-                    self._client.caches.list,
-                    config=types.ListCachedContentsConfig(page_size=100),
-                ),
-                timeout=15,
-            )
-            model_suffix = MODEL.split("/")[-1]  # e.g. "gemini-2.5-pro"
-            for cached in existing:
-                if model_suffix in (cached.model or ""):
-                    self._cached_content = cached.name
-                    logger.info("Reusing existing context cache: %s", cached.name)
-                    return
-
-            # No existing cache — create one
-            cache = await asyncio.wait_for(
-                asyncio.to_thread(
-                    self._client.caches.create,
-                    model=MODEL,
-                    config=types.CreateCachedContentConfig(
-                        system_instruction=self._system_prompt,
-                        tools=(
-                            [types.Tool(function_declarations=self._tools)]
-                            if self._tools
-                            else None
-                        ),
-                        ttl="3600s",
-                    ),
-                ),
-                timeout=30,
-            )
-            self._cached_content = cache.name
-            logger.info("Context cache created: %s", cache.name)
-        except asyncio.TimeoutError:
-            logger.warning("Context caching timed out, falling back to inline")
-            self._cached_content = None
-        except Exception as exc:
-            logger.warning("Context caching unavailable, falling back to inline: %s", exc)
-            self._cached_content = None
 
     async def stop(self) -> None:
         """Shut down all MCP server subprocesses."""
@@ -302,13 +256,10 @@ class FinOpsAgent:
                 model=MODEL,
                 contents=self._history,
                 config=types.GenerateContentConfig(
-                    cached_content=self._cached_content,
-                    system_instruction=(
-                        self._system_prompt if not self._cached_content else None
-                    ),
+                    system_instruction=self._system_prompt,
                     tools=(
                         [types.Tool(function_declarations=self._tools)]
-                        if self._tools and not self._cached_content
+                        if self._tools
                         else None
                     ),
                     temperature=0.1,

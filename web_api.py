@@ -123,13 +123,10 @@ class StreamingAgent(FinOpsAgent):
                     model=MODEL,
                     contents=self._history,
                     config=types.GenerateContentConfig(
-                        cached_content=self._cached_content,
-                        system_instruction=(
-                            self._system_prompt if not self._cached_content else None
-                        ),
+                        system_instruction=self._system_prompt,
                         tools=(
                             [types.Tool(function_declarations=self._tools)]
-                            if self._tools and not self._cached_content
+                            if self._tools
                             else None
                         ),
                         temperature=0.1,
