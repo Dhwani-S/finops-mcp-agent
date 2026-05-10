@@ -563,6 +563,136 @@ def get_bq_table_schema(table: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Tool: run_multi_cloud_cost_query
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def run_multi_cloud_cost_query(
+    aws_sql: str = "",
+    azure_sql: str = "",
+    gcp_sql: str = "",
+    top_n: int = 10,
+    sort_by: str = "cost",
+) -> str:
+    """Execute cost queries across multiple clouds and return ONE unified, aggregated result.
+
+    Use this INSTEAD of calling run_bq_query 3 times separately — it avoids flooding
+    the conversation context with intermediate per-cloud results.
+
+    Each SQL query is optional — omit or leave empty to skip a cloud.
+    Results are combined into a single sorted list with a cloud label added.
+
+    IMPORTANT:
+    - Each SQL must SELECT at minimum a label column and a cost column
+    - Use consistent column aliases across all queries (e.g. always alias cost as "cost")
+    - All standard run_bq_query validations apply (read-only, fully qualified tables, etc.)
+
+    EXAMPLE:
+    run_multi_cloud_cost_query(
+        aws_sql="SELECT line_item_product_code as service, SUM(total_cost) as cost FROM `cie-costmanagement-803717.aws.aws_daily_usage_extended_costs` WHERE date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY) GROUP BY service ORDER BY cost DESC LIMIT 10",
+        azure_sql="SELECT service_name as service, SUM(total_cost) as cost FROM `cie-costmanagement-803717.azure.daily_usage_costs` WHERE DATE(dateTime) >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY) GROUP BY service ORDER BY cost DESC LIMIT 10",
+        gcp_sql="SELECT service_description as service, SUM(cost_with_credits) as cost FROM `cie-costmanagement-803717.gcp.daily_usage_costs` WHERE date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY) GROUP BY service ORDER BY cost DESC LIMIT 10",
+        top_n=10, sort_by="cost"
+    )
+
+    Args:
+        aws_sql: BigQuery SQL for AWS cost data. Empty to skip.
+        azure_sql: BigQuery SQL for Azure cost data. Empty to skip.
+        gcp_sql: BigQuery SQL for GCP cost data. Empty to skip.
+        top_n: Number of top rows to return in the unified result. Default 10.
+        sort_by: Column name to sort by descending. Default "cost".
+    """
+    client = _init_bq_client()
+    if not client:
+        return "Error: BigQuery client not initialized. Check credentials and GCP_PROJECT_ID."
+
+    queries = {
+        "AWS": aws_sql.strip() if aws_sql else "",
+        "Azure": azure_sql.strip() if azure_sql else "",
+        "GCP": gcp_sql.strip() if gcp_sql else "",
+    }
+
+    # Must have at least one query
+    active = {cloud: sql for cloud, sql in queries.items() if sql}
+    if not active:
+        return "Error: Provide at least one SQL query (aws_sql, azure_sql, or gcp_sql)."
+
+    # Validate all queries first before executing any
+    for cloud, sql in active.items():
+        error = _validate_sql(sql)
+        if error:
+            return f"Error in {cloud} query: {error}"
+
+    from google.cloud import bigquery as bq
+
+    combined_rows = []
+    per_cloud_summary = {}
+    errors = []
+
+    for cloud, sql in active.items():
+        try:
+            job_config = bq.QueryJobConfig(maximum_bytes_billed=MAX_BYTES_BILLED)
+            start = time.time()
+            job = client.query(sql.rstrip(";"), job_config=job_config)
+            results = job.result(timeout=QUERY_TIMEOUT_SECONDS)
+            rows = [_serialize_row(dict(row)) for row in results]
+            elapsed = time.time() - start
+
+            logger.info("%s query returned %d rows in %.1fs", cloud, len(rows), elapsed)
+
+            # Add cloud label to each row
+            for row in rows[:MAX_RESULT_ROWS]:
+                row["_cloud"] = cloud
+                combined_rows.append(row)
+
+            # Per-cloud summary
+            cost_vals = []
+            for row in rows:
+                for k, v in row.items():
+                    if any(c in k.lower() for c in ("cost", "spend", "total", "amount")) and isinstance(v, (int, float)):
+                        cost_vals.append(v)
+                        break
+
+            per_cloud_summary[cloud] = {
+                "rows": len(rows),
+                "total": round(sum(cost_vals), 2) if cost_vals else 0,
+                "query_time_s": round(elapsed, 1),
+            }
+
+        except Exception as e:
+            logger.exception("%s query failed", cloud)
+            errors.append({"cloud": cloud, "error": str(e)})
+            per_cloud_summary[cloud] = {"rows": 0, "total": 0, "error": str(e)}
+
+    if not combined_rows and errors:
+        return f"Error: All queries failed — {json.dumps(errors)}"
+
+    # Sort by the specified column descending
+    top_n = max(1, min(top_n, 100))
+    try:
+        combined_rows.sort(
+            key=lambda r: float(r.get(sort_by, 0)) if isinstance(r.get(sort_by), (int, float)) else 0,
+            reverse=True,
+        )
+    except (ValueError, TypeError):
+        pass  # If sort_by column doesn't exist or isn't numeric, keep original order
+
+    grand_total = sum(s.get("total", 0) for s in per_cloud_summary.values())
+
+    result = {
+        "clouds_queried": list(active.keys()),
+        "grand_total": round(grand_total, 2),
+        "per_cloud": per_cloud_summary,
+        "top_results": combined_rows[:top_n],
+        "total_rows_before_limit": len(combined_rows),
+    }
+    if errors:
+        result["errors"] = errors
+
+    return json.dumps(result, default=str)
+
+
+# ---------------------------------------------------------------------------
 # Resources: table schemas (static files)
 # ---------------------------------------------------------------------------
 
