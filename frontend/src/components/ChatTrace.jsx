@@ -10,15 +10,22 @@ function formatTokens(n) {
 
 function formatDuration(ms) {
   if (!ms) return '—'
+  if (ms >= 60_000) return `${(ms / 60_000).toFixed(1)}m`
   if (ms >= 1000) return `${(ms / 1000).toFixed(1)}s`
   return `${Math.round(ms)}ms`
 }
 
+function formatChars(n) {
+  if (!n) return '0'
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
+  return String(n)
+}
+
 function formatCost(promptTokens, responseTokens, cachedTokens) {
-  // Gemini 2.5 Pro pricing (per 1M tokens)
-  const PROMPT_RATE = 1.25   // $1.25/1M input (<=200K)
-  const RESPONSE_RATE = 10.0 // $10/1M output
-  const CACHED_RATE = 0.3125 // $0.3125/1M cached (75% off)
+  const PROMPT_RATE = 1.25
+  const RESPONSE_RATE = 10.0
+  const CACHED_RATE = 0.3125
 
   const uncachedPrompt = promptTokens - cachedTokens
   const cost =
@@ -71,6 +78,40 @@ function TokenBar({ label, value, max, color }) {
   )
 }
 
+function ContextGrowthBar({ turns }) {
+  if (!turns || turns.length < 2) return null
+  const maxCum = Math.max(...turns.map((t) => t.cumulative_prompt || 0), 1)
+  return (
+    <div className="trace-context-growth">
+      {turns.map((t) => {
+        const pct = ((t.cumulative_prompt || 0) / maxCum) * 100
+        return (
+          <div key={t.round} className="trace-ctx-bar-wrapper" title={`R${t.round}: ${formatTokens(t.cumulative_prompt)} prompt tokens`}>
+            <div className="trace-ctx-bar" style={{ height: `${pct}%` }} />
+            <span className="trace-ctx-label">R{t.round}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function ToolDetailRow({ td }) {
+  const hasError = !!td.error
+  return (
+    <div className={`trace-tool-detail ${hasError ? 'has-error' : ''}`}>
+      <span className="trace-tool-name" title={td.tool}>{td.tool}</span>
+      <span className="trace-tool-server">{td.server}</span>
+      <span className="trace-tool-chars" title={`~${formatTokens(td.result_tokens_est)} tokens`}>
+        {formatChars(td.result_chars)} chars
+        {td.truncated && <span className="trace-tool-tag truncated">cut</span>}
+        {hasError && <span className="trace-tool-tag error">err</span>}
+      </span>
+      <span className="trace-tool-time">{formatDuration(td.duration_ms)}</span>
+    </div>
+  )
+}
+
 export default function ChatTrace({ tokenUsage }) {
   const [open, setOpen] = useState(false)
 
@@ -82,12 +123,16 @@ export default function ChatTrace({ tokenUsage }) {
     total_cached_tokens: cached = 0,
     total_tokens: total = 0,
     total_tool_calls: toolCalls = 0,
+    total_duration_ms: totalDuration = 0,
+    total_result_chars: totalResultChars = 0,
     turns = 0,
     per_turn = [],
   } = tokenUsage
 
   const { cost, saved } = formatCost(prompt, response, cached)
   const maxTurnTokens = Math.max(...per_turn.map((t) => t.prompt_tokens + t.response_tokens), 1)
+  const hasCached = per_turn.some((t) => t.cached_tokens > 0)
+  const hasToolDetails = per_turn.some((t) => t.tool_details?.length > 0)
 
   return (
     <div className="chat-trace">
@@ -99,6 +144,7 @@ export default function ChatTrace({ tokenUsage }) {
         <TraceIcon />
         <span className="trace-toggle-summary">
           {formatTokens(total)} tokens · {turns} {turns === 1 ? 'round' : 'rounds'} · {toolCalls} tool {toolCalls === 1 ? 'call' : 'calls'}
+          {totalDuration > 0 && <span className="trace-time"> · {formatDuration(totalDuration)}</span>}
           {cost > 0 && <span className="trace-cost"> · ~${cost.toFixed(4)}</span>}
         </span>
         <ChevronIcon open={open} />
@@ -116,17 +162,36 @@ export default function ChatTrace({ tokenUsage }) {
             )}
           </div>
 
+          {/* Context growth */}
+          {per_turn.length >= 2 && (
+            <div className="trace-section">
+              <div className="trace-section-title">
+                Context growth
+                <span className="trace-section-subtitle">
+                  {formatTokens(per_turn[0]?.cumulative_prompt)} → {formatTokens(per_turn[per_turn.length - 1]?.cumulative_prompt)} prompt
+                </span>
+              </div>
+              <ContextGrowthBar turns={per_turn} />
+            </div>
+          )}
+
           {/* Cost estimate */}
           {cost > 0 && (
             <div className="trace-section">
               <div className="trace-section-title">Cost estimate</div>
               <div className="trace-cost-grid">
-                <span className="trace-cost-label">This chat</span>
+                <span className="trace-cost-label">This query</span>
                 <span className="trace-cost-value">${cost.toFixed(4)}</span>
                 {saved > 0.0001 && (
                   <>
                     <span className="trace-cost-label">Saved by cache</span>
                     <span className="trace-cost-value trace-cost-saved">−${saved.toFixed(4)}</span>
+                  </>
+                )}
+                {totalResultChars > 0 && (
+                  <>
+                    <span className="trace-cost-label">Tool result data</span>
+                    <span className="trace-cost-value">{formatChars(totalResultChars)} chars (~{formatTokens(Math.round(totalResultChars / 4))} tok)</span>
                   </>
                 )}
               </div>
@@ -143,7 +208,7 @@ export default function ChatTrace({ tokenUsage }) {
                     <th>Round</th>
                     <th>Prompt</th>
                     <th>Response</th>
-                    {per_turn.some((t) => t.cached_tokens > 0) && <th>Cached</th>}
+                    {hasCached && <th>Cached</th>}
                     <th>Tools</th>
                     <th>Time</th>
                   </tr>
@@ -157,7 +222,7 @@ export default function ChatTrace({ tokenUsage }) {
                         <td className="trace-td-round">{t.round}</td>
                         <td>{formatTokens(t.prompt_tokens)}</td>
                         <td>{formatTokens(t.response_tokens)}</td>
-                        {per_turn.some((t2) => t2.cached_tokens > 0) && (
+                        {hasCached && (
                           <td className="trace-td-cached">{formatTokens(t.cached_tokens)}</td>
                         )}
                         <td>
@@ -176,6 +241,24 @@ export default function ChatTrace({ tokenUsage }) {
                   })}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {/* Tool-level details */}
+          {hasToolDetails && (
+            <div className="trace-section">
+              <div className="trace-section-title">Tool execution detail</div>
+              <div className="trace-tool-header">
+                <span>Tool</span>
+                <span>Server</span>
+                <span>Result</span>
+                <span>Time</span>
+              </div>
+              {per_turn.flatMap((t) =>
+                (t.tool_details || []).map((td, i) => (
+                  <ToolDetailRow key={`${t.round}-${i}`} td={td} />
+                ))
+              )}
             </div>
           )}
         </div>

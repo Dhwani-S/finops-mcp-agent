@@ -69,6 +69,11 @@ class SessionTrace(BaseModel):
 
     def summary(self) -> dict:
         """Return a JSON-serializable summary."""
+        total_duration = sum(t.duration_ms for t in self.turns)
+        total_result_chars = sum(
+            tc.result_chars for t in self.turns for tc in t.tool_calls
+        )
+
         return {
             "tracking_enabled": True,
             "total_prompt_tokens": self.total_prompt_tokens,
@@ -76,6 +81,8 @@ class SessionTrace(BaseModel):
             "total_cached_tokens": self.total_cached_tokens,
             "total_tokens": self.total_tokens,
             "total_tool_calls": self.total_tool_calls,
+            "total_duration_ms": round(total_duration, 1),
+            "total_result_chars": total_result_chars,
             "turns": self.turn_count,
             "per_turn": [
                 {
@@ -86,6 +93,18 @@ class SessionTrace(BaseModel):
                     "total_tokens": t.tokens.total_tokens,
                     "tool_calls": len(t.tool_calls),
                     "tools_used": [tc.tool for tc in t.tool_calls],
+                    "tool_details": [
+                        {
+                            "tool": tc.tool,
+                            "server": tc.server,
+                            "duration_ms": round(tc.duration_ms, 1),
+                            "result_chars": tc.result_chars,
+                            "result_tokens_est": tc.result_chars // 4,
+                            "truncated": tc.truncated,
+                            "error": tc.error,
+                        }
+                        for tc in t.tool_calls
+                    ],
                     "duration_ms": round(t.duration_ms, 1),
                     "cumulative_prompt": sum(
                         tr.tokens.prompt_tokens for tr in self.turns[:i + 1]
