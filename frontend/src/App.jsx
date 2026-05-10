@@ -357,7 +357,7 @@ function App() {
                 Plain-language questions about cloud spend—breakdowns, trends, anomalies, and savings ideas.
               </p>
             </div>
-            <StatusBar status={status} statusUpdatedAt={statusUpdatedAt} onClear={handleClear} onExport={handleExport} hasMessages={messages.length > 0} tokenUsage={tokenUsage} />
+            <StatusBar status={status} statusUpdatedAt={statusUpdatedAt} onClear={handleClear} onExport={handleExport} hasMessages={messages.length > 0} tokenUsage={tokenUsage} messages={messages} />
           </header>
           <main className="app-main">
             <MessageList

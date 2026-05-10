@@ -1,3 +1,5 @@
+import { useState } from 'react'
+import TokenChart from './TokenChart'
 import './StatusBar.css'
 
 function ActionIcon({ name }) {
@@ -69,7 +71,8 @@ function formatUpdated(d) {
   }
 }
 
-export default function StatusBar({ status, statusUpdatedAt, onClear, onExport, hasMessages, tokenUsage }) {
+export default function StatusBar({ status, statusUpdatedAt, onClear, onExport, hasMessages, tokenUsage, messages }) {
+  const [chartOpen, setChartOpen] = useState(false)
   const updatedStr = formatUpdated(statusUpdatedAt)
 
   if (!status) {
@@ -101,38 +104,46 @@ export default function StatusBar({ status, statusUpdatedAt, onClear, onExport, 
 
   return (
     <div className="status-bar">
-      <div className="status-bar-inner">
-        <div
-          className={`status-live ${allConnected ? 'is-ok' : anyConnected ? 'is-warn' : 'is-warn'}`}
-          title={allConnected ? 'All cost data services are reachable' : 'Some data sources may be unavailable'}
-        >
-          <span className="status-live-dot" aria-hidden="true" />
-          {allConnected ? 'All systems online' : anyConnected ? 'Partial connectivity' : 'Offline'}
+      <div className="status-bar-row">
+        <div className="status-bar-inner">
+          <div
+            className={`status-live ${allConnected ? 'is-ok' : anyConnected ? 'is-warn' : 'is-warn'}`}
+            title={allConnected ? 'All cost data services are reachable' : 'Some data sources may be unavailable'}
+          >
+            <span className="status-live-dot" aria-hidden="true" />
+            {allConnected ? 'All systems online' : anyConnected ? 'Partial connectivity' : 'Offline'}
+          </div>
+          {updatedStr && (
+            <span className="status-updated" title="When connection status was last checked">
+              Updated {updatedStr}
+            </span>
+          )}
         </div>
-        {updatedStr && (
-          <span className="status-updated" title="When connection status was last checked">
-            Updated {updatedStr}
-          </span>
-        )}
-      </div>
-      <div className="status-bar-actions">
-        {tokenUsage && tokenUsage.total_tokens > 0 && (
-          <span className="token-badge" title={`Prompt: ${formatTokens(tokenUsage.total_prompt_tokens)} | Response: ${formatTokens(tokenUsage.total_response_tokens)} | Tool calls: ${tokenUsage.total_tool_calls || 0}`}>
-            <TokenIcon />
-            {formatTokens(tokenUsage.total_tokens)}
-          </span>
-        )}
-        {hasMessages && (
-          <button type="button" className="btn-clear" onClick={onExport} title="Copy conversation to clipboard">
-            <ActionIcon name="copy" />
-            Copy chat
+        <div className="status-bar-actions">
+          {tokenUsage && tokenUsage.total_tokens > 0 && (
+            <button
+              type="button"
+              className={`token-badge ${chartOpen ? 'active' : ''}`}
+              onClick={() => setChartOpen((v) => !v)}
+              title={`Prompt: ${formatTokens(tokenUsage.total_prompt_tokens)} | Response: ${formatTokens(tokenUsage.total_response_tokens)} | Tool calls: ${tokenUsage.total_tool_calls || 0}\nClick to ${chartOpen ? 'hide' : 'show'} token chart`}
+            >
+              <TokenIcon />
+              {formatTokens(tokenUsage.total_tokens)}
+            </button>
+          )}
+          {hasMessages && (
+            <button type="button" className="btn-clear" onClick={onExport} title="Copy conversation to clipboard">
+              <ActionIcon name="copy" />
+              Copy chat
+            </button>
+          )}
+          <button type="button" className="btn-clear" onClick={onClear} title="Clear conversation">
+            <ActionIcon name="clear" />
+            Clear chat
           </button>
-        )}
-        <button type="button" className="btn-clear" onClick={onClear} title="Clear conversation">
-          <ActionIcon name="clear" />
-          Clear chat
-        </button>
+        </div>
       </div>
+      {chartOpen && <TokenChart messages={messages} />}
     </div>
   )
 }

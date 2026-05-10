@@ -1,0 +1,117 @@
+.token-chart-panel {
+  padding: 0.6rem 0.85rem 0.5rem;
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border-subtle);
+  animation: tokenChartSlide 0.2s ease;
+}
+
+@keyframes tokenChartSlide {
+  from {
+    opacity: 0;
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+  to {
+    opacity: 1;
+    max-height: 220px;
+  }
+}
+
+/* ── Stats row ── */
+
+.token-chart-stats {
+  display: flex;
+  gap: 1.2rem;
+  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.token-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+}
+
+.token-stat-value {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.token-stat-label {
+  font-size: 0.66rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.token-stat-cached .token-stat-value {
+  color: var(--chart-5, #10b981);
+}
+
+/* ── Chart area ── */
+
+.token-chart-container {
+  width: 100%;
+  height: 110px;
+}
+
+/* ── Legend ── */
+
+.token-chart-legend {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-top: 0.25rem;
+}
+
+.token-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.68rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.token-legend-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ── Tooltip ── */
+
+.token-chart-tooltip {
+  background: color-mix(in srgb, var(--bg-card) 96%, transparent);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 0.4rem 0.6rem;
+  box-shadow: 0 4px 12px color-mix(in srgb, black 18%, transparent);
+  backdrop-filter: blur(10px);
+  font-size: 0.74rem;
+}
+
+.token-chart-tooltip p {
+  margin: 0.1rem 0;
+}
+
+.token-chart-tooltip-label {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.2rem !important;
+}
+
+.token-chart-tooltip-total {
+  font-weight: 600;
+  color: var(--text-primary);
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 0.2rem;
+  margin-top: 0.2rem !important;
+}
