@@ -79,6 +79,66 @@ _MAX_TOOL_RESULT_CHARS = 4000
 # Token tracking — toggle via env or at runtime
 TOKEN_TRACKING = os.getenv("TOKEN_TRACKING", "true").lower() in ("true", "1", "yes")
 
+# ---------------------------------------------------------------------------
+# Tool routing — keyword → server mapping
+# ---------------------------------------------------------------------------
+
+# Each entry: frozenset of keywords → set of server names to include.
+# First match wins, so order matters (most specific first).
+# Analytics is auto-included when BQ or SQL is active (for post-processing).
+_TOOL_ROUTES: list[tuple[frozenset[str], set[str]]] = [
+    # File-only queries
+    (frozenset({"report", "file", "export", "csv", "download", "save", "list report",
+                "list file", "available report", "generate report"}),
+     {"file"}),
+
+    # GCP cost queries
+    (frozenset({"gcp", "bigquery", "bq", "google cloud", "gcp project",
+                "gcp service", "gcp cost", "gcp spend"}),
+     {"bq", "analytics"}),
+
+    # Azure/AWS recommendations & K8s
+    (frozenset({"azure", "aws", "recommendation", "k8s", "kubernetes",
+                "subscription", "reservation", "savings plan"}),
+     {"sql", "analytics"}),
+
+    # Identity lookups
+    (frozenset({"identity", "core_id", "coreid", "who owns", "project owner",
+                "lookup"}),
+     {"sql"}),
+
+    # Analytics-specific
+    (frozenset({"anomaly", "anomalies", "forecast", "trend", "growth",
+                "compare", "month over month", "mom", "wow", "qoq"}),
+     {"bq", "sql", "analytics"}),
+
+    # Multi-cloud
+    (frozenset({"multi-cloud", "multicloud", "all cloud", "across cloud",
+                "aws azure gcp", "total spend", "cloud spend"}),
+     {"bq", "sql", "analytics"}),
+]
+
+
+def _route_query(query: str) -> set[str] | None:
+    """Return set of server names relevant to the query, or None for all."""
+    q = query.lower()
+    matched_servers: set[str] = set()
+
+    for keywords, servers in _TOOL_ROUTES:
+        for kw in keywords:
+            if kw in q:
+                matched_servers.update(servers)
+                break  # Move to next route rule
+
+    if not matched_servers:
+        return None  # No match → use all servers (safe fallback)
+
+    # Auto-include analytics when BQ or SQL is active (for summarize, chart, etc.)
+    if matched_servers & {"bq", "sql"}:
+        matched_servers.add("analytics")
+
+    return matched_servers
+
 
 # ---------------------------------------------------------------------------
 # Agent
@@ -92,6 +152,7 @@ class FinOpsAgent:
         self._sessions: dict[str, ClientSession] = {}
         self._tool_map: dict[str, str] = {}        # tool_name → server_name
         self._tools: list[types.FunctionDeclaration] = []
+        self._tools_by_server: dict[str, list[types.FunctionDeclaration]] = {}
         self._exit_stack = AsyncExitStack()
         self._client: genai.Client | None = None
         self._system_prompt: str = ""
@@ -152,6 +213,7 @@ class FinOpsAgent:
         for name, session in self._sessions.items():
             try:
                 result = await session.list_tools()
+                server_tools: list[types.FunctionDeclaration] = []
                 for tool in result.tools:
                     self._tool_map[tool.name] = name
 
@@ -161,13 +223,15 @@ class FinOpsAgent:
                     }
                     params = self._clean_schema(params)
 
-                    self._tools.append(
-                        types.FunctionDeclaration(
-                            name=tool.name,
-                            description=tool.description or "",
-                            parameters=params,
-                        )
+                    fd = types.FunctionDeclaration(
+                        name=tool.name,
+                        description=tool.description or "",
+                        parameters=params,
                     )
+                    self._tools.append(fd)
+                    server_tools.append(fd)
+
+                self._tools_by_server[name] = server_tools
                 logger.info("    %s: %d tools", name, len(result.tools))
             except Exception as exc:
                 logger.warning("    %s: tool discovery failed: %s", name, exc)
@@ -233,6 +297,25 @@ class FinOpsAgent:
 
     # -- agentic loop ------------------------------------------------------
 
+    def _get_filtered_tools(self, query: str) -> list[types.FunctionDeclaration]:
+        """Return tools relevant to the query, or all tools if no match."""
+        servers = _route_query(query)
+        if servers is None:
+            logger.info("Tool routing: no keyword match → all %d tools", len(self._tools))
+            return self._tools
+
+        filtered = []
+        for srv in servers:
+            filtered.extend(self._tools_by_server.get(srv, []))
+
+        included = sorted(servers)
+        excluded = sorted(set(self._tools_by_server.keys()) - servers)
+        logger.info(
+            "Tool routing: %d tools from [%s], excluded [%s]",
+            len(filtered), ", ".join(included), ", ".join(excluded),
+        )
+        return filtered
+
     async def chat(self, user_message: str) -> str:
         """Process a user message through the agentic tool-calling loop.
 
@@ -248,9 +331,17 @@ class FinOpsAgent:
             )
         )
 
+        active_tools = self._get_filtered_tools(user_message)
+        routed = _route_query(user_message)
+        routed_servers = sorted(routed) if routed else sorted(self._tools_by_server.keys())
+
         for round_num in range(MAX_TOOL_ROUNDS):
             turn_start = time.time()
-            turn = TurnTrace(round=round_num + 1)
+            turn = TurnTrace(
+                round=round_num + 1,
+                active_tools_count=len(active_tools),
+                routed_servers=routed_servers,
+            )
 
             response = self._client.models.generate_content(
                 model=MODEL,
@@ -258,8 +349,8 @@ class FinOpsAgent:
                 config=types.GenerateContentConfig(
                     system_instruction=self._system_prompt,
                     tools=(
-                        [types.Tool(function_declarations=self._tools)]
-                        if self._tools
+                        [types.Tool(function_declarations=active_tools)]
+                        if active_tools
                         else None
                     ),
                     temperature=0.1,

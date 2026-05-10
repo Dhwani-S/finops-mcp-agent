@@ -40,6 +40,8 @@ class TurnTrace(BaseModel):
     tool_calls: list[ToolCallTrace] = Field(default_factory=list)
     has_text_response: bool = False
     duration_ms: float = 0.0
+    active_tools_count: int = 0
+    routed_servers: list[str] = Field(default_factory=list)
 
 
 class SessionTrace(BaseModel):
@@ -106,6 +108,8 @@ class SessionTrace(BaseModel):
                         for tc in t.tool_calls
                     ],
                     "duration_ms": round(t.duration_ms, 1),
+                    "active_tools_count": t.active_tools_count,
+                    "routed_servers": t.routed_servers,
                     "cumulative_prompt": sum(
                         tr.tokens.prompt_tokens for tr in self.turns[:i + 1]
                     ),
