@@ -350,6 +350,41 @@ def run_bq_query(sql: str, org_wide_confirmed: bool = False) -> str:
     - Azure dateTime is TIMESTAMP — use DATE(dateTime) for date comparisons
     - GCP/AWS date columns are DATE type — compare directly
 
+    EXAMPLES:
+
+    1. Azure spend by service (last month):
+       SELECT service_name, SUM(total_cost) as total
+       FROM `cie-costmanagement-803717.azure.daily_usage_costs`
+       WHERE DATE(dateTime) >= DATE_TRUNC(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH), MONTH)
+         AND DATE(dateTime) < DATE_TRUNC(CURRENT_DATE(), MONTH)
+       GROUP BY service_name ORDER BY total DESC LIMIT 20
+
+    2. AWS daily spend trend (last 30 days):
+       SELECT date, SUM(total_cost) as daily_cost
+       FROM `cie-costmanagement-803717.aws.aws_daily_usage_extended_costs`
+       WHERE date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+       GROUP BY date ORDER BY date
+
+    3. GCP costs by project (current month):
+       SELECT cpe_project_name, SUM(cost_with_credits) as total
+       FROM `cie-costmanagement-803717.gcp.daily_usage_costs`
+       WHERE date >= DATE_TRUNC(CURRENT_DATE(), MONTH)
+       GROUP BY cpe_project_name ORDER BY total DESC LIMIT 20
+
+    4. GCP recommendations (latest snapshot, active only):
+       SELECT recommendation_name, action_type, yearly_cost_savings, state
+       FROM `cie-costmanagement-803717.reporting_data.gcp_recommendation`
+       WHERE to_date = (SELECT MAX(to_date) FROM `cie-costmanagement-803717.reporting_data.gcp_recommendation`)
+         AND state = 'ACTIVE'
+       ORDER BY yearly_cost_savings DESC LIMIT 50
+
+    5. Azure utilization (low-utilization VMs):
+       SELECT resource_name, AVG(avg_cpu) as avg_cpu, AVG(avg_memory) as avg_mem
+       FROM `cie-costmanagement-803717.azure.utilization_metrics`
+       WHERE date >= DATE_SUB(CURRENT_DATE(), INTERVAL 14 DAY)
+       GROUP BY resource_name
+       HAVING AVG(avg_cpu) < 10 ORDER BY avg_cpu LIMIT 20
+
     Args:
         sql: BigQuery Standard SQL query string.
         org_wide_confirmed: Set to true ONLY after the user has explicitly confirmed they want

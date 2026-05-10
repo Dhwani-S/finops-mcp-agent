@@ -117,6 +117,11 @@ def detect_anomalies(data_json: str, method: str = "z_score",
 
     Minimum 7 data points required.
 
+    WORKFLOW EXAMPLE:
+    Step 1: Query daily spend → run_bq_query("SELECT DATE(dateTime) as date, SUM(total_cost) as cost FROM ... GROUP BY date ORDER BY date")
+    Step 2: Transform result → extract only [{"date": "...", "cost": ...}] array from query output
+    Step 3: Call detect_anomalies(data_json=<transformed>, method="z_score", sensitivity=2.5)
+
     Args:
         data_json: JSON array of objects with date and value fields (see format above).
         method: Detection method — "z_score" or "iqr". Default: "z_score".
@@ -231,6 +236,11 @@ def forecast(data_json: str, periods_ahead: int = 7,
     Example: [{"date": "2026-03-01", "spend": 50000}, {"date": "2026-03-02", "spend": 51000}, ...]
 
     Minimum 7 data points required. Data MUST be sorted by date ascending.
+
+    WORKFLOW EXAMPLE (monthly forecast):
+    Step 1: Query monthly totals → run_bq_query("SELECT DATE_TRUNC(date, MONTH) as month, SUM(cost_with_credits) as cost FROM ... WHERE date >= DATE_SUB(CURRENT_DATE(), INTERVAL 6 MONTH) GROUP BY month ORDER BY month")
+    Step 2: Transform → extract [{"month": "2026-01-01", "cost": 120000}, ...] from result
+    Step 3: Call forecast(data_json=<transformed>, periods_ahead=3, method="linear")
 
     Args:
         data_json: JSON array of objects with date and value fields, sorted chronologically.
@@ -438,6 +448,11 @@ def summarize_data(data_json: str, group_by: str = "", value_column: str = "") -
     Returns: total, mean, median, min, max, count, std, top-N and bottom-N
     rows by the value column, plus optional group-by aggregation.
 
+    WORKFLOW EXAMPLE:
+    Step 1: run_bq_query("SELECT service_name, SUM(total_cost) as cost FROM ... GROUP BY service_name")
+    Step 2: summarize_data(data_json=<query_result>, group_by="service_name", value_column="cost")
+    → Returns stats + top/bottom 5 services + per-service totals with percentages
+
     Args:
         data_json: JSON array of objects (pass raw tool output from run_bq_query / run_sql_query).
         group_by: Optional column name to group by (e.g. "service_description", "project_name").
@@ -547,6 +562,12 @@ def compare_periods(period_a_json: str, period_b_json: str,
 
     Returns: per-item comparison with absolute and percentage deltas,
     plus summary totals and biggest movers.
+
+    WORKFLOW EXAMPLE:
+    Step 1: run_bq_query("SELECT service_name, SUM(total_cost) as cost FROM ... WHERE date BETWEEN '2026-03-01' AND '2026-03-31' GROUP BY service_name")  → period_a
+    Step 2: run_bq_query("SELECT service_name, SUM(total_cost) as cost FROM ... WHERE date BETWEEN '2026-04-01' AND '2026-04-30' GROUP BY service_name")  → period_b
+    Step 3: compare_periods(period_a_json=<step1>, period_b_json=<step2>, value_column="cost", label_column="service_name")
+    → Returns per-service deltas, biggest increases/decreases, new/dropped services
 
     Args:
         period_a_json: JSON array for the baseline period (e.g. last month).

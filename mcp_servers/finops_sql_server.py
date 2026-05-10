@@ -313,6 +313,35 @@ def run_sql_query(sql: str, org_wide_confirmed: bool = False) -> str:
     - Use LIKE for pattern matching (not REGEXP)
     - Date functions: DATEADD, DATEDIFF, GETDATE(), CAST(x AS DATE)
 
+    EXAMPLES:
+
+    1. Azure recommendations (latest snapshot, cost category):
+       SELECT TOP 20 recommendation_id, resource_name, impact, annual_savings_amount
+       FROM [reporting].[azure_recommendations]
+       WHERE run_date = (SELECT MAX(run_date) FROM [reporting].[azure_recommendations])
+         AND category = 'Cost'
+       ORDER BY annual_savings_amount DESC
+
+    2. AWS recommendations (latest snapshot):
+       SELECT TOP 20 check_name, estimated_monthly_savings, status
+       FROM [reporting].[aws_recommendations]
+       WHERE run_date = (SELECT MAX(run_date) FROM [reporting].[aws_recommendations])
+       ORDER BY estimated_monthly_savings DESC
+
+    3. Azure K8s costs by namespace (last 30 days):
+       SELECT TOP 20 namespace, SUM(cost) as total_cost
+       FROM [dbo].[k8_cost_tracking_integrated]
+       WHERE date >= DATEADD(DAY, -30, GETDATE())
+       GROUP BY namespace ORDER BY total_cost DESC
+
+    4. GCP K8s costs by cluster:
+       SELECT TOP 20 cluster_name, SUM(cost) as total_cost
+       FROM [reporting].[gcp_k8_cost_tracking_tf]
+       GROUP BY cluster_name ORDER BY total_cost DESC
+
+    5. Schema discovery (ALWAYS do first for unfamiliar tables):
+       -- Call get_table_schema('azure_recommendations') before writing queries
+
     Args:
         sql: T-SQL query string.
         org_wide_confirmed: Set to true ONLY after the user has explicitly confirmed they want
