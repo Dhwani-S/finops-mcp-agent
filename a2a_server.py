@@ -34,9 +34,6 @@ from a2a.types import (
     Message,
     Part,
     Role,
-    TaskState,
-    TaskStatus,
-    TaskStatusUpdateEvent,
 )
 
 from agent import FinOpsAgent
@@ -67,66 +64,33 @@ class FinOpsAgentExecutor(AgentExecutor):
 
         if not user_message:
             await event_queue.enqueue_event(
-                TaskStatusUpdateEvent(
-                    task_id=context.task_id,
+                Message(
+                    role=Role.ROLE_AGENT,
+                    parts=[Part(text="No message text received.")],
+                    message_id=str(uuid.uuid4()),
                     context_id=context.context_id,
-                    status=TaskStatus(
-                        state=TaskState.TASK_STATE_FAILED,
-                        message=Message(
-                            role=Role.ROLE_AGENT,
-                            parts=[Part(text="No message text received.")],
-                            message_id=str(uuid.uuid4()),
-                        ),
-                    ),
+                    task_id=context.task_id,
                 )
             )
             return
 
         logger.info("A2A task %s: %s", context.task_id, user_message[:100])
 
-        # 2. Tell the master we're working on it
-        await event_queue.enqueue_event(
-            TaskStatusUpdateEvent(
-                task_id=context.task_id,
-                context_id=context.context_id,
-                status=TaskStatus(state=TaskState.TASK_STATE_WORKING),
-            )
-        )
-
-        # 3. Run the query through your existing FinOpsAgent
+        # 2. Run the query through your existing FinOpsAgent
         try:
             response_text = await self.agent.chat(user_message)
         except Exception as exc:
             logger.exception("Agent error for task %s", context.task_id)
-            await event_queue.enqueue_event(
-                TaskStatusUpdateEvent(
-                    task_id=context.task_id,
-                    context_id=context.context_id,
-                    status=TaskStatus(
-                        state=TaskState.TASK_STATE_FAILED,
-                        message=Message(
-                            role=Role.ROLE_AGENT,
-                            parts=[Part(text=f"Agent error: {exc}")],
-                            message_id=str(uuid.uuid4()),
-                        ),
-                    ),
-                )
-            )
-            return
+            response_text = f"Agent error: {exc}"
 
-        # 4. Send the completed result back
+        # 3. Send the completed result back as a Message
         await event_queue.enqueue_event(
-            TaskStatusUpdateEvent(
-                task_id=context.task_id,
+            Message(
+                role=Role.ROLE_AGENT,
+                parts=[Part(text=response_text)],
+                message_id=str(uuid.uuid4()),
                 context_id=context.context_id,
-                status=TaskStatus(
-                    state=TaskState.TASK_STATE_COMPLETED,
-                    message=Message(
-                        role=Role.ROLE_AGENT,
-                        parts=[Part(text=response_text)],
-                        message_id=str(uuid.uuid4()),
-                    ),
-                ),
+                task_id=context.task_id,
             )
         )
 
@@ -135,10 +99,12 @@ class FinOpsAgentExecutor(AgentExecutor):
     ) -> None:
         """Handle cancellation requests."""
         await event_queue.enqueue_event(
-            TaskStatusUpdateEvent(
-                task_id=context.task_id,
+            Message(
+                role=Role.ROLE_AGENT,
+                parts=[Part(text="Task cancelled.")],
+                message_id=str(uuid.uuid4()),
                 context_id=context.context_id,
-                status=TaskStatus(state=TaskState.TASK_STATE_CANCELED),
+                task_id=context.task_id,
             )
         )
 
@@ -256,7 +222,7 @@ async def main() -> None:
 
     logger.info("A2A server at http://%s:%d", HOST, PORT)
     logger.info(
-        "Agent card at http://%s:%d/.well-known/agent.json", HOST, PORT
+        "Agent card at http://%s:%d/.well-known/agent-card.json", HOST, PORT
     )
 
     # Run with uvicorn
