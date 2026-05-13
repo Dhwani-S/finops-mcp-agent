@@ -297,9 +297,9 @@
 }
 
 .chat-input-btn--stop {
-  background: var(--bg-elevated);
-  color: var(--text-secondary);
-  border: 1px solid var(--border-subtle);
+  background: #e8433f;
+  color: white;
+  border: 1px solid #d63b37;
 }
 
 .chat-input-btn-icon {

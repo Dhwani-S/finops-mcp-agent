@@ -107,6 +107,8 @@ def list_files(
         return f"Error: {subdir} is not a valid directory."
     entries = []
     for item in sorted(target.iterdir()):
+        if item.name.startswith("."):
+            continue
         rel = item.relative_to(SANDBOX)
         suffix = "/" if item.is_dir() else ""
         entries.append(f"{rel}{suffix}")

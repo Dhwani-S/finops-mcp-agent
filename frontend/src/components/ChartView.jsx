@@ -144,15 +144,16 @@ export function extractChartData(events) {
 
     let parsed
     try {
-      parsed = JSON.parse(evt.result)
+      parsed = JSON.parse(evt.full_result || evt.result)
     } catch {
       continue
     }
 
-    // Handle wrapped results like { values: [...] }
+    // Handle wrapped results like { values: [...] } or { top_results: [...] }
     if (!Array.isArray(parsed)) {
-      if (parsed?.values && Array.isArray(parsed.values)) {
-        parsed = parsed.values
+      const arrayField = parsed?.values || parsed?.top_results || parsed?.results || parsed?.rows || parsed?.data
+      if (Array.isArray(arrayField)) {
+        parsed = arrayField
       } else {
         continue
       }

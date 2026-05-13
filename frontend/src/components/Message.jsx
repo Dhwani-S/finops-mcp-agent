@@ -388,7 +388,7 @@ function OptionChips({ options, onOptionClick, disabled }) {
 
 export default function Message({ message, onOptionClick, disabled, chartMode }) {
   const { role, content, events, loading, elicitation, tokenUsage } = message
-  const [showChart, setShowChart] = useState(false)
+  const [showChart, setShowChart] = useState(true)
 
   // Track if this message had content on first mount (i.e. loaded from history)
   const wasCompleteOnMount = useRef(!loading && !!content)
@@ -466,7 +466,7 @@ export default function Message({ message, onOptionClick, disabled, chartMode })
             : <ElicitationInput config={elicitation} onSubmit={onOptionClick} disabled={disabled} />}
         </div>
       )}
-      {hasCharts && !chartMode && (
+      {hasCharts && (
         <div className="chart-toggle-bar">
           <button
             type="button"
@@ -477,7 +477,7 @@ export default function Message({ message, onOptionClick, disabled, chartMode })
           </button>
         </div>
       )}
-      {hasCharts && (chartMode || showChart) && chartDataList.map((cd, i) => (
+      {hasCharts && showChart && chartDataList.map((cd, i) => (
         <ChartView key={i} chartData={cd} />
       ))}
       {!loading && tokenUsage && <ChatTrace tokenUsage={tokenUsage} />}

@@ -90,7 +90,21 @@ def _extract_elicitation(text: str):
 class StreamingAgent(FinOpsAgent):
     """Extends FinOpsAgent to yield SSE events during the agentic loop."""
 
-    async def chat_stream(self, user_message: str):
+    def __init__(self):
+        super().__init__()
+        self._sessions_history: dict[str, list[types.Content]] = {}
+        self._sessions_auto_approve: dict[str, bool] = {}
+
+    def _get_history(self, session_id: str) -> list[types.Content]:
+        if session_id not in self._sessions_history:
+            self._sessions_history[session_id] = []
+        return self._sessions_history[session_id]
+
+    def clear_session(self, session_id: str) -> None:
+        self._sessions_history.pop(session_id, None)
+        self._sessions_auto_approve.pop(session_id, None)
+
+    async def chat_stream(self, user_message: str, session_id: str = "default", cancel_event: asyncio.Event | None = None):
         """Async generator that yields SSE events as the agent works.
 
         Event types:
@@ -105,7 +119,8 @@ class StreamingAgent(FinOpsAgent):
             yield {"event": "error", "data": json.dumps({"message": "Agent not started"})}
             return
 
-        self._history.append(
+        history = self._get_history(session_id)
+        history.append(
             types.Content(
                 role="user",
                 parts=[types.Part.from_text(text=user_message)],
@@ -115,6 +130,12 @@ class StreamingAgent(FinOpsAgent):
         yield {"event": "thinking", "data": json.dumps({"message": "Understanding your question..."})}
 
         for round_num in range(MAX_TOOL_ROUNDS):
+            # Check if client disconnected
+            if cancel_event and cancel_event.is_set():
+                yield {"event": "text", "data": json.dumps({"content": "Request stopped."})}
+                yield {"event": "done", "data": json.dumps({"rounds": round_num, "cancelled": True})}
+                return
+
             turn_start = time.time()
             turn = TurnTrace(
                 round=round_num + 1,
@@ -125,7 +146,7 @@ class StreamingAgent(FinOpsAgent):
             try:
                 response = self._client.models.generate_content(
                     model=MODEL,
-                    contents=self._history,
+                    contents=history,
                     config=types.GenerateContentConfig(
                         system_instruction=self._system_prompt,
                         tools=(
@@ -145,12 +166,12 @@ class StreamingAgent(FinOpsAgent):
                 turn.tokens = self._extract_usage(response)
 
             candidate = response.candidates[0]
-            parts = candidate.content.parts
+            parts = candidate.content.parts or []
             fn_calls = [p for p in parts if p.function_call]
 
             if not fn_calls:
                 text = "".join(p.text for p in parts if p.text) or ""
-                self._history.append(candidate.content)
+                history.append(candidate.content)
 
                 # Extract structured elicitation block if present
                 prose, elicitation = _extract_elicitation(text)
@@ -168,7 +189,7 @@ class StreamingAgent(FinOpsAgent):
                 return
 
             # --- execute tool calls with streaming events ---
-            self._history.append(candidate.content)
+            history.append(candidate.content)
 
             fn_responses: list[types.Part] = [None] * len(fn_calls)  # type: ignore[list-item]
 
@@ -216,7 +237,7 @@ class StreamingAgent(FinOpsAgent):
                             error_msg = result_text
 
                     truncated = len(result_text) > 2000
-                    # Truncate for SSE display (full result goes to Gemini)
+                    # Truncate for SSE display text (full result goes to Gemini)
                     display_text = (
                         result_text[:2000] + "..."
                         if truncated
@@ -238,6 +259,7 @@ class StreamingAgent(FinOpsAgent):
                         "data": json.dumps({
                             "tool": fc.name,
                             "result": display_text,
+                            "full_result": result_text if truncated else None,
                             "chars": len(result_text),
                         }),
                     })
@@ -256,7 +278,7 @@ class StreamingAgent(FinOpsAgent):
             while not event_queue.empty():
                 yield await event_queue.get()
 
-            self._history.append(
+            history.append(
                 types.Content(role="user", parts=fn_responses)
             )
 
@@ -349,30 +371,38 @@ async def chat(request: Request):
 
     body = await request.json()
     message = body.get("message", "").strip()
+    session_id = body.get("session_id", "default")
     if not message:
         return JSONResponse(status_code=400, content={"error": "Empty message"})
 
     # Check for "Accept all for session" response and set flag
     if message.lower() in ("accept all for session", "accept all"):
-        _agent._auto_approve_queries = True
+        _agent._sessions_auto_approve[session_id] = True
 
     # Inject auto-approve context so the LLM knows to skip dry-runs
     effective_message = message
-    if _agent._auto_approve_queries:
+    if _agent._sessions_auto_approve.get(session_id, False):
         effective_message = f"[auto_approve_queries=true]\n{message}"
 
+    cancel = asyncio.Event()
+
     async def event_generator():
-        async for event in _agent.chat_stream(effective_message):
+        async for event in _agent.chat_stream(effective_message, session_id=session_id, cancel_event=cancel):
+            if await request.is_disconnected():
+                cancel.set()
+                return
             yield event
 
     return EventSourceResponse(event_generator())
 
 
 @app.post("/api/clear")
-async def clear():
+async def clear(request: Request):
     if not _agent:
         return JSONResponse(status_code=503, content={"error": "Agent not ready"})
-    _agent.clear_history()
+    body = await request.json() if request.headers.get("content-type", "").startswith("application/json") else {}
+    session_id = body.get("session_id", "default") if body else "default"
+    _agent.clear_session(session_id)
     return {"status": "cleared"}
 
 

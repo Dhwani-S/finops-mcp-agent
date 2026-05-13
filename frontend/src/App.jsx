@@ -119,10 +119,10 @@ function App() {
           break
         case 'tool_result':
           msg.events = [...msg.events,
-            { type: 'tool_result', tool: data.tool, result: data.result, chars: data.chars }]
+            { type: 'tool_result', tool: data.tool, result: data.result, full_result: data.full_result, chars: data.chars }]
           break
         case 'text':
-          msg.content = data.content
+          msg.content = data.content?.replace(/\[Chart\]/gi, '').replace(/\n{3,}/g, '\n\n').trim()
           break
         case 'elicitation':
           msg.elicitation = data
@@ -186,7 +186,7 @@ function App() {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: messageForApi }),
+        body: JSON.stringify({ message: messageForApi, session_id: activeSessionId }),
         signal: abortRef.current.signal,
       })
 
@@ -250,7 +250,7 @@ function App() {
   }
 
   const handleClear = async () => {
-    await fetch('/api/clear', { method: 'POST' })
+    await fetch('/api/clear', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: activeSessionId }) })
     updateActiveMessages(() => [])
     setTokenUsage(null)
   }
@@ -299,7 +299,6 @@ function App() {
   }
 
   const handleNewSession = async () => {
-    await fetch('/api/clear', { method: 'POST' })
     const s = createSession()
     setSessions((prev) => [s, ...prev])
     setActiveSessionId(s.id)
@@ -307,21 +306,19 @@ function App() {
 
   const handleSelectSession = async (id) => {
     if (id === activeSessionId) return
-    await fetch('/api/clear', { method: 'POST' })
     setActiveSessionId(id)
   }
 
   const handleDeleteSession = async (id) => {
     const remaining = sessions.filter((s) => s.id !== id)
+    await fetch('/api/clear', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: id }) })
     if (remaining.length === 0) {
-      await fetch('/api/clear', { method: 'POST' })
       const s = createSession()
       setSessions([s])
       setActiveSessionId(s.id)
       return
     }
     if (id === activeSessionId) {
-      await fetch('/api/clear', { method: 'POST' })
       const next = remaining[0]
       setActiveSessionId(next.id)
     }
