@@ -4,7 +4,7 @@ An MCP-native, multi-cloud cost intelligence platform. Ask cloud cost questions 
 
 > **Current state:** 4 MCP servers (BQ, SQL Server, Analytics, File) + single Gemini 2.5 Pro agent + FastAPI + React dashboard with SSE streaming.
 
-**[▶ Watch Demo](https://drive.google.com/file/d/1UMCAsbRWVjwdFg1FdogLk5IyklzAP_Ox/view?usp=drive_link)** | **[Source Code](https://github.com/Dhwani-S/finops-mcp-agent)**
+**[▶ Watch Demo](https://youtu.be/cRg8EBKBUIo)** | **[Source Code](https://github.com/Dhwani-S/finops-mcp-agent)**
 
 ---
 
