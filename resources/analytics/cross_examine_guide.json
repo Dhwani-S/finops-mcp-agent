@@ -1,0 +1,183 @@
+{
+  "description": "Cross-examine guide: benchmark pricing ratios and commitment optimization tips for cross-cloud what-if analysis. Ratios represent typical relative cost for equivalent services (1.0 = same cost, <1.0 = cheaper, >1.0 = more expensive). These are industry averages — actual costs depend on negotiated rates.",
+  "benchmarks": {
+    "compute_vm": {
+      "description": "General-purpose VMs (m-series/standard tier)",
+      "aws_to_azure": 0.92,
+      "aws_to_gcp": 0.85,
+      "azure_to_aws": 1.09,
+      "azure_to_gcp": 0.88,
+      "gcp_to_aws": 1.18,
+      "gcp_to_azure": 1.14,
+      "source": "industry_benchmark_2025",
+      "notes": "GCP SUDs (sustained use discounts) make GCP cheapest for steady VMs. AWS has best spot market depth."
+    },
+    "compute_serverless": {
+      "description": "Serverless functions (Lambda/Functions/Cloud Functions)",
+      "aws_to_azure": 0.90,
+      "aws_to_gcp": 0.95,
+      "azure_to_aws": 1.11,
+      "azure_to_gcp": 1.05,
+      "gcp_to_aws": 1.05,
+      "gcp_to_azure": 0.95,
+      "source": "industry_benchmark_2025",
+      "notes": "Pricing highly depends on invocation count vs. duration vs. memory. AWS Lambda has best cold-start performance."
+    },
+    "compute_containers": {
+      "description": "Container services (ECS/ACI/Cloud Run)",
+      "aws_to_azure": 0.95,
+      "aws_to_gcp": 0.88,
+      "azure_to_aws": 1.05,
+      "azure_to_gcp": 0.93,
+      "gcp_to_aws": 1.14,
+      "gcp_to_azure": 1.08,
+      "source": "industry_benchmark_2025",
+      "notes": "Cloud Run is often cheapest for bursty container workloads due to per-request billing."
+    },
+    "kubernetes": {
+      "description": "Managed Kubernetes (EKS/AKS/GKE)",
+      "aws_to_azure": 0.85,
+      "aws_to_gcp": 0.82,
+      "azure_to_aws": 1.18,
+      "azure_to_gcp": 0.90,
+      "gcp_to_aws": 1.22,
+      "gcp_to_azure": 1.11,
+      "source": "industry_benchmark_2025",
+      "notes": "AKS has no control plane fee. GKE Autopilot simplifies cost management. EKS charges $0.10/hr per cluster."
+    },
+    "storage_object": {
+      "description": "Object storage (S3/Blob/GCS)",
+      "aws_to_azure": 0.95,
+      "aws_to_gcp": 0.90,
+      "azure_to_aws": 1.05,
+      "azure_to_gcp": 0.95,
+      "gcp_to_aws": 1.11,
+      "gcp_to_azure": 1.05,
+      "source": "industry_benchmark_2025",
+      "notes": "Egress costs vary significantly. GCS has cheapest storage; AWS S3 has most tiering options."
+    },
+    "storage_block": {
+      "description": "Block storage (EBS/Managed Disks/Persistent Disk)",
+      "aws_to_azure": 0.90,
+      "aws_to_gcp": 0.88,
+      "azure_to_aws": 1.11,
+      "azure_to_gcp": 0.98,
+      "gcp_to_aws": 1.14,
+      "gcp_to_azure": 1.02,
+      "source": "industry_benchmark_2025",
+      "notes": "Performance tiers and IOPS pricing differ significantly across clouds."
+    },
+    "database_relational": {
+      "description": "Managed relational databases (RDS/Azure SQL/Cloud SQL)",
+      "aws_to_azure": 0.95,
+      "aws_to_gcp": 0.90,
+      "azure_to_aws": 1.05,
+      "azure_to_gcp": 0.95,
+      "gcp_to_aws": 1.11,
+      "gcp_to_azure": 1.05,
+      "source": "industry_benchmark_2025",
+      "notes": "Azure SQL has good price/performance for SQL Server workloads (no license cost). RDS has broadest engine support."
+    },
+    "database_nosql": {
+      "description": "NoSQL databases (DynamoDB/Cosmos DB/Firestore)",
+      "aws_to_azure": 1.10,
+      "aws_to_gcp": 0.85,
+      "azure_to_aws": 0.91,
+      "azure_to_gcp": 0.80,
+      "gcp_to_aws": 1.18,
+      "gcp_to_azure": 1.25,
+      "source": "industry_benchmark_2025",
+      "notes": "Cosmos DB tends to be most expensive but offers multi-model and global distribution. DynamoDB on-demand is simple but can be costly at scale."
+    },
+    "data_warehouse": {
+      "description": "Data warehouse/analytics (Redshift/Synapse/BigQuery)",
+      "aws_to_azure": 0.90,
+      "aws_to_gcp": 0.80,
+      "azure_to_aws": 1.11,
+      "azure_to_gcp": 0.85,
+      "gcp_to_aws": 1.25,
+      "gcp_to_azure": 1.18,
+      "source": "industry_benchmark_2025",
+      "notes": "BigQuery serverless model is cheapest for ad-hoc queries. Redshift reserved nodes best for steady workloads."
+    },
+    "networking_cdn": {
+      "description": "CDN services (CloudFront/Front Door/Cloud CDN)",
+      "aws_to_azure": 0.92,
+      "aws_to_gcp": 0.95,
+      "azure_to_aws": 1.09,
+      "azure_to_gcp": 1.03,
+      "gcp_to_aws": 1.05,
+      "gcp_to_azure": 0.97,
+      "source": "industry_benchmark_2025",
+      "notes": "CDN pricing depends heavily on traffic volume and origin location."
+    },
+    "monitoring": {
+      "description": "Monitoring/observability (CloudWatch/Monitor/Cloud Monitoring)",
+      "aws_to_azure": 0.85,
+      "aws_to_gcp": 0.80,
+      "azure_to_aws": 1.18,
+      "azure_to_gcp": 0.92,
+      "gcp_to_aws": 1.25,
+      "gcp_to_azure": 1.09,
+      "source": "industry_benchmark_2025",
+      "notes": "GCP Cloud Monitoring has generous free tier. CloudWatch custom metrics can be expensive."
+    },
+    "messaging": {
+      "description": "Message queues/event streaming (SQS/Service Bus/Pub/Sub)",
+      "aws_to_azure": 1.05,
+      "aws_to_gcp": 0.90,
+      "azure_to_aws": 0.95,
+      "azure_to_gcp": 0.88,
+      "gcp_to_aws": 1.11,
+      "gcp_to_azure": 1.14,
+      "source": "industry_benchmark_2025",
+      "notes": "SQS is cheapest for simple queuing. Pub/Sub best for high-throughput streaming."
+    },
+    "ml_platform": {
+      "description": "ML/AI platforms (SageMaker/Azure ML/Vertex AI)",
+      "aws_to_azure": 0.95,
+      "aws_to_gcp": 0.90,
+      "azure_to_aws": 1.05,
+      "azure_to_gcp": 0.95,
+      "gcp_to_aws": 1.11,
+      "gcp_to_azure": 1.05,
+      "source": "industry_benchmark_2025",
+      "notes": "GPU pricing varies significantly by instance type. GCP has best TPU options for training."
+    },
+    "cache": {
+      "description": "In-memory cache (ElastiCache/Azure Cache/Memorystore)",
+      "aws_to_azure": 0.95,
+      "aws_to_gcp": 0.92,
+      "azure_to_aws": 1.05,
+      "azure_to_gcp": 0.97,
+      "gcp_to_aws": 1.09,
+      "gcp_to_azure": 1.03,
+      "source": "industry_benchmark_2025",
+      "notes": "Pricing is similar across clouds for Redis. ElastiCache Serverless adds flexibility but at higher per-request cost."
+    }
+  },
+  "commitment_optimization": {
+    "aws": {
+      "action": "Consider AWS Savings Plans (Compute or EC2) or Reserved Instances",
+      "typical_savings_pct": "30-50%",
+      "options": ["1-year no-upfront Savings Plan (~30%)", "1-year all-upfront RI (~40%)", "3-year all-upfront RI (~55%)", "Spot instances for fault-tolerant workloads (~65%)"]
+    },
+    "azure": {
+      "action": "Consider Azure Reserved VM Instances or Azure Savings Plan",
+      "typical_savings_pct": "35-55%",
+      "options": ["1-year Reserved Instance (~35%)", "3-year Reserved Instance (~55%)", "Azure Hybrid Benefit for Windows/SQL (~40% additional)", "Spot VMs for interruptible workloads (~60%)"]
+    },
+    "gcp": {
+      "action": "Consider GCP Committed Use Discounts (CUDs) — SUDs already auto-apply",
+      "typical_savings_pct": "25-55%",
+      "options": ["Sustained Use Discounts (auto, up to 30%)", "1-year CUD (~37%)", "3-year CUD (~55%)", "Preemptible/Spot VMs (~60-80%)"]
+    }
+  },
+  "migration_considerations": {
+    "data_transfer": "Egress costs are typically $0.08-0.12/GB. Factor in one-time migration data transfer costs.",
+    "feature_parity": "Not all services are 1:1 equivalent. Validate feature requirements before switching.",
+    "lock_in": "Consider API compatibility, proprietary features, and ecosystem dependencies.",
+    "downtime": "Plan for migration downtime or parallel-run costs during transition.",
+    "compliance": "Verify data residency and compliance requirements are met on target cloud."
+  }
+}

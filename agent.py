@@ -67,6 +67,10 @@ SERVERS: dict[str, dict] = {
         "command": _py,
         "args": [str(_servers_dir / "finops_file_server.py")],
     },
+    "cross_examine": {
+        "command": _py,
+        "args": [str(_servers_dir / "finops_cross_examine_server.py")],
+    },
 }
 
 # JSON Schema keys that Gemini function calling doesn't support
@@ -116,6 +120,14 @@ _TOOL_ROUTES: list[tuple[frozenset[str], set[str]]] = [
     (frozenset({"multi-cloud", "multicloud", "all cloud", "across cloud",
                 "aws azure gcp", "total spend", "cloud spend"}),
      {"bq", "sql", "analytics"}),
+
+    # Cross-examine / what-if analysis
+    (frozenset({"cross examine", "cross-examine", "what if", "what-if",
+                "switch cloud", "migrate cloud", "alternative cloud",
+                "cheaper cloud", "compare clouds", "save money",
+                "would have saved", "should we use", "better cloud",
+                "cross cloud", "cloud comparison"}),
+     {"bq", "analytics", "cross_examine"}),
 ]
 
 
