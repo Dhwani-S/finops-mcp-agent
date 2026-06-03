@@ -82,6 +82,23 @@ _STRIP_KEYS = frozenset({"additionalProperties", "$schema", "$id", "title"})
 # Large BQ results (500 rows of JSON) pollute context and cause hallucinations.
 _MAX_TOOL_RESULT_CHARS = 4000
 
+
+def _build_artifact_preview(result_text: str) -> str:
+    """Build a structured preview so the decision layer can reason about data."""
+    try:
+        data = json.loads(result_text)
+        if isinstance(data, list) and data and isinstance(data[0], dict):
+            row_count = len(data)
+            columns = list(data[0].keys())
+            sample = json.dumps(data[:3], indent=2, default=str)[:1200]
+            return (
+                f"{row_count} rows | columns: {', '.join(columns)}\n"
+                f"Sample (first 3 rows):\n{sample}"
+            )
+    except (json.JSONDecodeError, TypeError, IndexError):
+        pass
+    return result_text[:1000]
+
 # History pruning: after this many Content entries, compress older tool
 # results to one-line summaries.  Keeps context lean as sessions grow.
 _HISTORY_PRUNE_THRESHOLD = 20
@@ -573,6 +590,12 @@ class FinOpsAgent:
                         tc.error = result_text
                     else:
                         args = dict(fc.args) if fc.args else {}
+
+                        # Resolve artifact references in tool arguments
+                        for key, val in args.items():
+                            if isinstance(val, str) and val.startswith("art:") and artifacts.exists(val):
+                                args[key] = artifacts.get_text(val)
+
                         tc.args = args
                         logger.info(
                             "→ [%s] %s(%s)",
@@ -607,12 +630,13 @@ class FinOpsAgent:
                             source=f"{server}:{fc.name}",
                             descriptor=f"{fc.name}({json.dumps(dict(fc.args) if fc.args else {}, default=str)[:80]}) → {len(result_text)} chars",
                         )
-                        preview = result_text[:500].replace("\n", " ")
+                        preview = _build_artifact_preview(result_text)
                         result_text = (
                             f"[Artifact {art_id} stored — {tc.result_chars} chars]\n"
-                            f"Preview: {preview}...\n\n"
-                            f"Full data is stored. To analyze it, call summarize_data "
-                            f'with artifact_id="{art_id}" (do NOT pass data_json).'
+                            f"{preview}\n\n"
+                            f"Full data is stored. To analyze it, call the appropriate tool "
+                            f'with artifact_id="{art_id}" (do NOT pass data_json). '
+                            f"Artifact references in tool arguments are resolved automatically."
                         )
                         tc.artifact_id = art_id
                         tc.truncated = True

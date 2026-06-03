@@ -105,6 +105,85 @@ def _load_cross_examine_guide() -> dict:
 
 _instance_map_cache: dict | None = None
 
+# ─── Spec-based instance matching helpers ───────────────────────────
+# AWS instance size suffix → approximate vCPU count
+_AWS_SIZE_VCPUS: dict[str, int] = {
+    "nano": 1, "micro": 1, "small": 1, "medium": 2,
+    "large": 2, "xlarge": 4, "2xlarge": 8, "4xlarge": 16,
+    "8xlarge": 32, "9xlarge": 36, "12xlarge": 48, "16xlarge": 64,
+    "18xlarge": 72, "24xlarge": 96, "metal": 96,
+}
+
+# AWS family prefix letter → approximate memory GiB per vCPU
+_AWS_FAMILY_MEM_RATIO: dict[str, float] = {
+    "t": 4, "m": 4, "c": 2, "r": 8, "x": 16,
+    "g": 4, "p": 4, "d": 8, "i": 8, "z": 8,
+    "a": 4, "f": 4, "h": 4, "u": 16,
+}
+
+# GCP machine-type class → memory GiB per vCPU
+_GCP_MEM_RATIO: dict[str, float] = {
+    "standard": 4, "highmem": 8, "highcpu": 1,
+    "ultramem": 24, "megamem": 14,
+}
+
+
+def _parse_aws_specs(instance: str) -> tuple[int, float] | None:
+    """Parse AWS instance name (e.g. 'c5.2xlarge') to approximate (vcpus, memory_gib)."""
+    m = re.match(
+        r"^([a-z]+)\d+[a-z]*\.(\d*xlarge|large|small|medium|micro|nano|metal)$",
+        instance.lower(),
+    )
+    if not m:
+        return None
+    family_letter = m.group(1)[0]
+    size = m.group(2)
+    vcpus = _AWS_SIZE_VCPUS.get(size)
+    if vcpus is None:
+        return None
+    mem_ratio = _AWS_FAMILY_MEM_RATIO.get(family_letter, 4)
+    return (vcpus, vcpus * mem_ratio)
+
+
+def _parse_gcp_specs(instance: str) -> tuple[int, float] | None:
+    """Parse GCP instance name (e.g. 'n2-standard-4') to approximate (vcpus, memory_gib)."""
+    m = re.match(
+        r"^[a-z]\d[a-z]*-(standard|highmem|highcpu|ultramem|megamem)-(\d+)$",
+        instance.lower(),
+    )
+    if not m:
+        return None
+    vcpus = int(m.group(2))
+    mem_ratio = _GCP_MEM_RATIO.get(m.group(1), 4)
+    return (vcpus, vcpus * mem_ratio)
+
+
+def _parse_mem_gib(mem_str: str) -> float:
+    """Parse memory string like '16 GiB' to float."""
+    m = re.match(r"([\d.]+)", mem_str)
+    return float(m.group(1)) if m else 0
+
+
+def _find_by_specs(
+    vcpus: int, memory_gib: float, all_mappings: list[dict], max_results: int = 3,
+) -> list[dict]:
+    """Find mappings closest to the given vCPU/memory specs."""
+    scored = []
+    for mapping in all_mappings:
+        m_vcpus = mapping.get("vcpus", 0)
+        m_mem = _parse_mem_gib(mapping.get("memory", "0 GiB"))
+        if m_vcpus == 0:
+            continue
+        # Weight vCPU match heavily, memory secondary
+        score = abs(m_vcpus - vcpus) * 1000 + abs(m_mem - memory_gib)
+        scored.append((score, mapping))
+    scored.sort(key=lambda x: x[0])
+    # Prefer exact vCPU matches with closest memory
+    exact_vcpu = [m for s, m in scored if m["vcpus"] == vcpus][:max_results]
+    if exact_vcpu:
+        return exact_vcpu
+    return [m for _, m in scored[:max_results]]
+
 
 def _load_instance_map() -> dict:
     """Load the compute instance mapping (Azure→AWS→GCP) with caching."""
@@ -324,6 +403,7 @@ def map_compute_instances(
         lookup = _norm(instance)
 
         matches = []
+        match_type = "exact"  # track whether spec-based fallback was used
         if cloud == "azure":
             # 1. Exact match
             hit = azure_idx.get(lookup)
@@ -348,16 +428,32 @@ def map_compute_instances(
             if not matches:
                 matches = [m for entries in aws_idx.values() for m in entries
                            if lookup in _norm(m["aws_instance"])]
+            # Spec-based fallback: parse instance specs and find closest match
+            if not matches:
+                specs = _parse_aws_specs(instance)
+                if specs:
+                    matches = _find_by_specs(specs[0], specs[1], all_mappings)
+                    if matches:
+                        match_type = "spec_based"
         elif cloud == "gcp":
             matches = gcp_idx.get(lookup, [])
             if not matches:
                 matches = [m for entries in gcp_idx.values() for m in entries
                            if lookup in _norm(m["gcp_instance"])]
+            # Spec-based fallback
+            if not matches:
+                specs = _parse_gcp_specs(instance)
+                if specs:
+                    matches = _find_by_specs(specs[0], specs[1], all_mappings)
+                    if matches:
+                        match_type = "spec_based"
 
         if matches:
-            results.append({
+            result_entry = {
                 "query": {"cloud": cloud, "instance": instance},
-                "match_type": "series" if len(matches) > 1 else "exact",
+                "match_type": match_type if match_type == "spec_based" else (
+                    "series" if len(matches) > 1 else "exact"
+                ),
                 "matches": [
                     {
                         "azure_vm_size": m["azure_vm_size"],
@@ -368,7 +464,13 @@ def map_compute_instances(
                     }
                     for m in matches[:15]  # Cap at 15 for series
                 ],
-            })
+            }
+            if match_type == "spec_based":
+                result_entry["note"] = (
+                    f"No exact mapping found for '{instance}'. "
+                    f"Showing closest matches by similar vCPU/memory specs (approximate)."
+                )
+            results.append(result_entry)
         else:
             results.append({
                 "query": {"cloud": cloud, "instance": instance},
@@ -888,7 +990,19 @@ def generate_what_if_scenario(
 
             # Detect VM series and use family-specific benchmark
             is_vm_series = bool(re.search(r"(?:Series|v\d+)$", service.strip(), re.IGNORECASE))
-            if not mapping and is_vm_series:
+
+            # Detect AWS/GCP instance types (e.g. m6i.2xlarge, n2-standard-8)
+            is_aws_instance = bool(re.match(
+                r"^[a-z]+\d+[a-z]*\.\d*(?:xlarge|large|small|medium|micro|nano|metal)$",
+                service.strip().lower(),
+            ))
+            is_gcp_instance = bool(re.match(
+                r"^[a-z]\d[a-z]*-(?:standard|highmem|highcpu|ultramem|megamem)-\d+$",
+                service.strip().lower(),
+            ))
+            is_instance_type = is_aws_instance or is_gcp_instance
+
+            if not mapping and (is_vm_series or is_instance_type):
                 mapping = {"canonical": "compute_vm", "aws": "Amazon EC2", "azure": "Virtual Machines", "gcp": "Compute Engine"}
 
             if mapping:
@@ -897,6 +1011,20 @@ def generate_what_if_scenario(
                 # Family-specific ratio for VM series (e.g. compute_vm_compute_optimized)
                 if is_vm_series and cloud == "azure":
                     family_key = _classify_azure_vm_family(service)
+                    bm = benchmarks.get(family_key, benchmarks.get(canonical, {}))
+                elif is_aws_instance:
+                    # Map AWS family prefix to VM category
+                    family_letter = service.strip().lower()[0]
+                    _aws_family_map = {
+                        "c": "compute_vm_compute_optimized",
+                        "r": "compute_vm_memory_optimized",
+                        "x": "compute_vm_memory_optimized",
+                        "i": "compute_vm_storage_optimized",
+                        "t": "compute_vm_burstable",
+                        "g": "compute_vm_gpu",
+                        "p": "compute_vm_gpu",
+                    }
+                    family_key = _aws_family_map.get(family_letter, "compute_vm_general_purpose")
                     bm = benchmarks.get(family_key, benchmarks.get(canonical, {}))
                 else:
                     bm = benchmarks.get(canonical, {})
@@ -924,17 +1052,32 @@ def generate_what_if_scenario(
                     proj["pricing_ratio"] = ratio
                     proj["ratio_source"] = bm.get("source", "industry_benchmark")
 
-                # Include instance equivalents for VM series
-                if is_vm_series:
-                    equivalents = _get_instance_equivalents(service)
+                # Include instance equivalents for VM series and instance types
+                if is_vm_series or is_instance_type:
+                    equivalents = []
+                    if is_vm_series:
+                        equivalents = _get_instance_equivalents(service)
+                    elif is_aws_instance:
+                        specs = _parse_aws_specs(service.strip())
+                        if specs:
+                            mapping_data = _load_instance_map()
+                            equivalents = _find_by_specs(specs[0], specs[1], mapping_data.get("mappings", []))
+                    elif is_gcp_instance:
+                        specs = _parse_gcp_specs(service.strip())
+                        if specs:
+                            mapping_data = _load_instance_map()
+                            equivalents = _find_by_specs(specs[0], specs[1], mapping_data.get("mappings", []))
                     if equivalents:
-                        cloud_key = {"aws": "aws_instance", "gcp": "gcp_instance"}.get(target_cloud)
+                        cloud_key = {"aws": "aws_instance", "gcp": "gcp_instance", "azure": "azure_vm_size"}.get(target_cloud)
                         if cloud_key:
                             proj["instance_equivalents"] = [
-                                {"azure": eq["azure_vm_size"], target_cloud: eq[cloud_key],
+                                {"azure": eq["azure_vm_size"], "aws": eq["aws_instance"],
+                                 "gcp": eq["gcp_instance"],
                                  "vcpus": eq["vcpus"], "memory": eq["memory"]}
                                 for eq in equivalents[:8]
                             ]
+                            if is_instance_type:
+                                proj["equivalents_note"] = "Matched by approximate vCPU/memory specs."
 
                 total_projected_annual += new_total
             else:

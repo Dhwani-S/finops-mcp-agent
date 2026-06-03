@@ -1,0 +1,158 @@
+**User:** Compare my top AWS EC2 instances against equivalent Azure and GCP VMs
+
+---
+
+
+**Agent:** I can do that. Could you please provide the specific AWS EC2 instance types you'd like me to compare? Alternatively, I can look up your top 5 most expensive EC2 instances from last month and compare those.
+
+---
+
+**User:** Jehan Wickramasuriya check for this
+
+---
+
+
+**Agent:** Got it. I will scope the analysis to resources owned by Jehan Wickramasuriya.
+
+First, should I look up the top 5 most expensive EC2 instances from last month under that name, or would you like to provide the specific instance types to compare?
+
+---
+
+**User:** Compare my top 5
+
+---
+
+> Tool: run_query (bq)
+> Args: {
+  "sql": "SELECT\n  product_instance_type,\n  SUM(total_cost) as cost\nFROM\n  `cie-costmanagement-prod-152136.aws.aws_daily_usage_extended_costs`\nWHERE\n  line_item_usage_start_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)\n  AND UPPER(executive_owner) = 'JEHAN WICKRAMASURIYA'\n  AND product_servicename = 'Amazon Elastic Compute Cloud'\n  AND product_instance_type IS NOT NULL\nGROUP BY\n  product_instance_type\nORDER BY\n  cost DESC\nLIMIT 5"
+}
+> Result (313 chars): [{"product_instance_type": "t3.xlarge", "cost": 22744.143039}, {"product_instance_type": "g4dn.4xlarge", "cost": 9493.56729}, {"product_instance_type": "g4dn.2xlarge", "cost": 7854.055275}, {"product_instance_type": "g4dn.xlarge", "cost": 6691.831681}, {"product_instance_type": "m6i.large", "cost": 5035.957224}]
+> Tool: map_compute_instances (cross_examine)
+> Args: {
+  "instance_names": "[{\"cloud\": \"aws\", \"instance\": \"t3.xlarge\"}, {\"cloud\": \"aws\", \"instance\": \"g4dn.4xlarge\"}, {\"cloud\": \"aws\", \"instance\": \"g4dn.2xlarge\"}, {\"cloud\": \"aws\", \"instance\": \"g4dn.xlarge\"}, {\"cloud\": \"aws\", \"instance\": \"m6i.large\"}]"
+}
+> Result (4289 chars): {
+  "results": [
+    {
+      "query": {
+        "cloud": "aws",
+        "instance": "t3.xlarge"
+      },
+      "match_type": "series",
+      "matches": [
+        {
+          "azure_vm_size": "B4ls v2",
+          "aws_instance": "t3.xlarge",
+          "gcp_instance": "e2-standard-4",
+          "vcpus": 4,
+          "memory": "8 GiB"
+        },
+        {
+          "azure_vm_size": "B4ms",
+          "aws_instance": "t3.xlarge",
+          "gcp_instance": "e2-standard-4",
+          "vcpus": 4,
+      
+
+**Agent:** Of course. Here is a comparison of the top 5 most expensive AWS EC2 instances owned by Jehan Wickramasuriya from the last 30 days against their closest equivalents in Azure and GCP.
+
+| AWS Instance | Monthly Cost (30 days) | Equivalent Azure VM (vCPU, Memory) | Equivalent GCP VM (vCPU, Memory) |
+| :--- | :--- | :--- | :--- |
+| `t3.xlarge` | $22,744.14 | `B4ls v2` (4, 8 GiB) | `e2-standard-4` (4, 8 GiB) |
+| `g4dn.4xlarge` | $9,493.57 | `B16as v2` (16, 64 GiB) | `e2-standard-16` (16, 64 GiB) |
+| `g4dn.2xlarge` | $7,854.06 | `B8as v2` (8, 32 GiB) | `e2-standard-8` (8, 32 GiB) |
+| `g4dn.xlarge` | $6,691.83 | `B4as v2` (4, 16 GiB) | `e2-standard-4` (4, 16 GiB) |
+| `m6i.large` | $5,035.96 | `D2ds v5` (2, 8 GiB) | `c3-standard-2` (2, 8 GiB) |
+
+*Note: The equivalents for the `g4dn` (GPU) instances are based on the closest vCPU and memory specifications, as a direct 1-to-1 mapping for specialized instances is not always available.*
+
+Would you like to explore pricing for these equivalent instances or perform a more detailed cost-saving analysis?
+
+---
+
+**User:** What if we migrate my top 5 AWS workloads to GCP? Show estimated cost impact
+
+---
+
+> Tool: generate_what_if_scenario (cross_examine)
+> Args: {
+  "scenario_json": "{\n  \"services\": [\n    {\n      \"cloud\": \"AWS\",\n      \"service\": \"Amazon Elastic Compute Cloud\",\n      \"monthly_cost\": 51819.64,\n      \"action\": \"switch_to_gcp\"\n    }\n  ],\n  \"time_horizon_months\": 12\n}"
+}
+> Result (3347 chars): {
+  "scenario_summary": {
+    "time_horizon_months": 12,
+    "total_current_cost": 621835.68,
+    "total_projected_cost": 528560.28,
+    "total_savings": 93275.4,
+    "savings_percent": 15.0
+  },
+  "service_projections": [
+    {
+      "service": "Amazon Elastic Compute Cloud",
+      "cloud": "AWS",
+      "action": "switch_to_gcp",
+      "current_monthly": 51819.64,
+      "current_total": 621835.68,
+      "target_cloud": "GCP",
+      "target_service": "Compute Engine",
+      "projected_monthly": 
+
+**Agent:** Based on industry benchmarks, migrating your top 5 EC2 workloads from AWS to Google Cloud Platform could result in significant savings.
+
+Here is the estimated cost impact:
+
+| Cost Summary | Current (AWS) | Projected (GCP) | Savings |
+| :--- | :--- | :--- | :--- |
+| **Monthly** | $51,819.64 | $44,046.69 | **$7,772.95 (15.0%)** |
+| **Annual** | $621,835.68 | $528,560.28 | **$93,275.40** |
+
+This projection is based on a benchmark pricing ratio where equivalent GCP Compute Engine resources are approximately **15%** less expensive than their AWS counterparts for this type of workload.
+
+Here is a chart visualizing the monthly cost comparison over a 12-month period:
+<chart>
+data:
+  type: line
+  title: What-If Cost Projection
+  x_axis: Month
+  y_axis: Cost (USD)
+  series:
+    - name: Current Cost
+      data:
+        - 51819.64
+        - 51819.64
+        - 51819.64
+        - 51819.64
+        - 51819.64
+        - 51819.64
+        - 51819.64
+        - 51819.64
+        - 51819.64
+        - 51819.64
+        - 51819.64
+        - 51819.64
+    - name: Projected Cost
+      data:
+        - 44046.69
+        - 44046.69
+        - 44046.69
+        - 44046.69
+        - 44046.69
+        - 44046.69
+        - 44046.69
+        - 44046.69
+        - 44046.69
+        - 44046.69
+        - 44046.69
+        - 44046.69
+</chart>
+
+***Disclaimer:** This is a high-level estimate based on industry benchmarks. Actual savings can vary based on your specific negotiated pricing, usage patterns, and commitment levels (e.g., reserved instances vs. on-demand). This estimate does not include one-time costs associated with migration, such as data transfer or engineering effort.*
+
+---
+
+**User:** Run a VM and disk rightsizing analysis on my Azure resources
+
+---
+
+
+---

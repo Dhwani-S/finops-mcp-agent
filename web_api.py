@@ -105,6 +105,19 @@ class StreamingAgent(FinOpsAgent):
         'Return JSON: {"goals": [{"text": "..."}]}'
     )
 
+    _PERCEPTION_REEVAL_PROMPT = (
+        "You are the Perception layer of a FinOps cost-management agent.\n"
+        "You previously decomposed a query into goals. Review the TOOL RESULTS\n"
+        "and determine which goals have been satisfied.\n\n"
+        "Rules:\n"
+        "- A goal is 'done' if the tool results contain data that fulfills it.\n"
+        "- A goal is 'running' if tools were called for it but more steps remain.\n"
+        "- A goal is 'pending' if no tools have addressed it yet.\n"
+        "- Once marked 'done', a goal stays done forever.\n"
+        "- Preserve goal text and order exactly. Do NOT add, remove, or reorder.\n\n"
+        'Return JSON: {"goals": [{"id": 0, "text": "...", "status": "done|running|pending"}]}'
+    )
+
     _TOOL_LABELS = {
         "get_table_schema": "Discovering schema",
         "list_dimension_values": "Exploring dimensions",
@@ -194,6 +207,118 @@ class StreamingAgent(FinOpsAgent):
             logger.warning("Perception failed: %s", exc)
             return None
 
+    # ── Perception: re-evaluate goal satisfaction ───────────────────────────
+
+    def _re_evaluate_goals(
+        self, goals: list[dict], tool_events: list[dict]
+    ) -> list[dict] | None:
+        """Re-evaluate which goals are satisfied after a tool round.
+
+        Follows Session 6 pattern: perception is called after each action
+        round to track goal satisfaction based on actual tool results,
+        rather than advancing linearly.
+        """
+        try:
+            tool_summary_lines = []
+            for evt in tool_events:
+                name = evt.get("tool", "?")
+                chars = evt.get("chars", 0)
+                snippet = evt.get("result", "")[:300]
+                error = evt.get("error")
+                if error:
+                    tool_summary_lines.append(f"- {name}: ERROR — {error[:200]}")
+                else:
+                    tool_summary_lines.append(f"- {name} ({chars} chars): {snippet}")
+
+            prompt = (
+                "GOALS:\n"
+                + "\n".join(
+                    f"  {g['id']}. [{g['status']}] {g['text']}" for g in goals
+                )
+                + "\n\nTOOL RESULTS:\n"
+                + "\n".join(tool_summary_lines)
+            )
+
+            response = self._client.models.generate_content(
+                model=MODEL,
+                contents=[
+                    types.Content(
+                        role="user",
+                        parts=[types.Part.from_text(text=prompt)],
+                    )
+                ],
+                config=types.GenerateContentConfig(
+                    system_instruction=self._PERCEPTION_REEVAL_PROMPT,
+                    temperature=0.1,
+                    max_output_tokens=512,
+                    thinking_config=types.ThinkingConfig(thinking_budget=128),
+                ),
+            )
+
+            candidate = response.candidates[0] if response.candidates else None
+            if not candidate or not candidate.content or not candidate.content.parts:
+                return None
+
+            text = ""
+            for part in candidate.content.parts:
+                if getattr(part, "thought", False):
+                    continue
+                if part.text:
+                    text += part.text
+
+            if not text.strip():
+                return None
+
+            m = self._JSON_FENCE_RE.search(text)
+            json_str = m.group(1) if m else text.strip()
+            parsed = json.loads(json_str)
+
+            updated = parsed.get("goals", [])
+            if len(updated) != len(goals):
+                logger.warning("Perception re-eval: goal count mismatch (%d vs %d)", len(updated), len(goals))
+                return None
+
+            # Merge: never un-done a goal
+            for i, g in enumerate(goals):
+                if g["status"] == "done":
+                    continue
+                new_status = updated[i].get("status", g["status"])
+                if new_status in ("done", "running", "pending"):
+                    g["status"] = new_status
+
+            done_count = sum(1 for g in goals if g["status"] == "done")
+            logger.info("Perception re-eval: %d/%d goals done", done_count, len(goals))
+            return goals
+
+        except Exception as exc:
+            logger.warning("Perception re-eval failed: %s", exc)
+            return None
+
+    # ── Artifact preview for decision context ───────────────────────────────
+
+    @staticmethod
+    def _build_artifact_preview(result_text: str) -> str:
+        """Build a structured preview so the decision layer can reason about data.
+
+        Session 6 pattern: the decision layer receives ATTACHED ARTIFACTS with
+        actual content (up to 8KB).  We give a structured summary: row count,
+        columns, sample rows — enough for the LLM to pick the right next tool.
+        """
+        try:
+            data = json.loads(result_text)
+            if isinstance(data, list) and data and isinstance(data[0], dict):
+                row_count = len(data)
+                columns = list(data[0].keys())
+                sample = json.dumps(data[:3], indent=2, default=str)[:1200]
+                return (
+                    f"{row_count} rows | columns: {', '.join(columns)}\n"
+                    f"Sample (first 3 rows):\n{sample}"
+                )
+        except (json.JSONDecodeError, TypeError, IndexError):
+            pass
+        # Fallback for non-JSON: first 1000 chars
+        return result_text[:1000]
+
     def _get_history(self, session_id: str) -> list[types.Content]:
         if session_id not in self._sessions_history:
             self._sessions_history[session_id] = []
@@ -238,7 +363,6 @@ class StreamingAgent(FinOpsAgent):
 
         # ── Perception: decompose into goals ──
         goals = self._decompose_goals(user_message)
-        goal_index = 0  # tracks next goal to progress
 
         if goals:
             yield {
@@ -332,12 +456,13 @@ class StreamingAgent(FinOpsAgent):
                 srv = self._tool_map.get(fc.name)
                 server_batches.setdefault(srv, []).append((idx, fc))
 
-            # ── Goal progression: mark next goal as running ──
-            if goals and goal_index < len(goals):
-                goals[goal_index]["status"] = "running"
+            # ── Goal progression: mark first pending goal as running ──
+            if goals:
+                for g in goals:
+                    if g["status"] in ("pending", "running"):
+                        g["status"] = "running"
+                        break
                 yield {"event": "plan", "data": json.dumps({"goals": goals})}
-
-            fn_responses: list[types.Part] = [None] * len(fn_calls)  # type: ignore[list-item]
 
             # Collect events from parallel batches via a queue
             event_queue: asyncio.Queue = asyncio.Queue()
@@ -347,14 +472,20 @@ class StreamingAgent(FinOpsAgent):
                     args = dict(fc.args) if fc.args else {}
                     tool_start = time.time()
 
+                    # Emit tool_call event BEFORE resolving artifacts (keep event small)
                     await event_queue.put({
                         "event": "tool_call",
                         "data": json.dumps({
                             "tool": fc.name,
                             "server": server or "unknown",
-                            "args": args,
+                            "args": {k: (v[:80] + "…" if isinstance(v, str) and len(v) > 80 else v) for k, v in args.items()},
                         }, default=str),
                     })
+
+                    # Resolve artifact references in tool arguments
+                    for key, val in args.items():
+                        if isinstance(val, str) and val.startswith("art:") and artifacts.exists(val):
+                            args[key] = artifacts.get_text(val)
 
                     error_msg = None
                     if not server or server not in self._sessions:
@@ -384,6 +515,25 @@ class StreamingAgent(FinOpsAgent):
                         else result_text
                     )
 
+                    # Store large results as artifacts to keep LLM context lean
+                    # Build a structured preview (Session 6: decision sees attached artifacts)
+                    llm_result_text = result_text
+                    art_id = None
+                    if len(result_text) > 4000:
+                        art_id = artifacts.put(
+                            result_text,
+                            source=f"{server}:{fc.name}",
+                            descriptor=f"{fc.name}({json.dumps(args, default=str)[:80]}) → {len(result_text)} chars",
+                        )
+                        preview = StreamingAgent._build_artifact_preview(result_text)
+                        llm_result_text = (
+                            f"[Artifact {art_id} stored — {len(result_text)} chars]\n"
+                            f"{preview}\n\n"
+                            f"Full data is stored. To analyze it, call the appropriate tool "
+                            f'with artifact_id="{art_id}" (do NOT pass data_json). '
+                            f"Artifact references in tool arguments are resolved automatically."
+                        )
+
                     turn.tool_calls.append(ToolCallTrace(
                         tool=fc.name,
                         server=server or "unknown",
@@ -391,6 +541,7 @@ class StreamingAgent(FinOpsAgent):
                         result_chars=len(result_text),
                         truncated=truncated,
                         error=error_msg,
+                        artifact_id=art_id,
                         duration_ms=(time.time() - tool_start) * 1000,
                     ))
 
@@ -401,12 +552,13 @@ class StreamingAgent(FinOpsAgent):
                             "result": display_text,
                             "full_result": result_text if truncated else None,
                             "chars": len(result_text),
+                            "artifact_id": art_id,
                         }),
                     })
 
                     fn_responses[idx] = types.Part.from_function_response(
                         name=fc.name,
-                        response={"result": result_text},
+                        response={"result": llm_result_text},
                     )
 
             # Fan out — each server batch runs concurrently
@@ -414,14 +566,21 @@ class StreamingAgent(FinOpsAgent):
                 *(_run_batch(srv, calls) for srv, calls in server_batches.items())
             )
 
-            # Drain all queued events
+            # Drain queued events and collect tool results for perception
+            round_tool_events = []
             while not event_queue.empty():
-                yield await event_queue.get()
+                evt = await event_queue.get()
+                yield evt
+                # Collect tool_result events for perception re-evaluation
+                if isinstance(evt, dict) and evt.get("event") == "tool_result":
+                    try:
+                        round_tool_events.append(json.loads(evt["data"]))
+                    except (json.JSONDecodeError, KeyError):
+                        pass
 
-            # ── Goal progression: mark current goal done ──
-            if goals and goal_index < len(goals):
-                goals[goal_index]["status"] = "done"
-                goal_index += 1
+            # ── Perception re-evaluation: assess goal satisfaction ──
+            if goals:
+                self._re_evaluate_goals(goals, round_tool_events)
                 yield {"event": "plan", "data": json.dumps({"goals": goals})}
 
             history.append(

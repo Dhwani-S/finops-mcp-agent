@@ -136,6 +136,10 @@ function detectBestChartType(data, labelKey, valueKeys, isMultiCloud) {
   // Multi-cloud pivoted data → stacked bar
   if (isMultiCloud && hasMultipleValues) return 'stacked'
 
+  // Many items with long labels → horizontal bar (even with multiple value keys)
+  const avgLabelLen = labels.reduce((s, l) => s + String(l).length, 0) / rowCount
+  if ((rowCount > 10 && avgLabelLen > 15) || avgLabelLen > 25) return 'hbar'
+
   // Multiple value keys → stacked bar for comparison
   if (hasMultipleValues) return 'stacked'
 
@@ -143,7 +147,6 @@ function detectBestChartType(data, labelKey, valueKeys, isMultiCloud) {
   if (distinctLabels <= 6 && !hasMultipleValues) return 'donut'
 
   // Many categories (>8) with long labels → horizontal bar
-  const avgLabelLen = labels.reduce((s, l) => s + String(l).length, 0) / rowCount
   if (rowCount > 8 || avgLabelLen > 20) return 'hbar'
 
   return 'bar'
@@ -449,19 +452,17 @@ export default function ChartView({ chartData }) {
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
               <XAxis
                 dataKey={labelKey}
-                angle={-35}
+                angle={-45}
                 textAnchor="end"
-                tick={{ fill: 'var(--text-secondary)', fontSize: 11 }}
-                tickFormatter={(v) => truncateLabel(v, 25)}
+                tick={{ fill: 'var(--text-secondary)', fontSize: 10 }}
+                tickFormatter={(v) => truncateLabel(v, 18)}
                 interval={0}
                 height={80}
-                label={{ value: labelKey, position: 'insideBottom', offset: -5, fill: 'var(--text-secondary)', fontSize: 11 }}
               />
               <YAxis
                 tickFormatter={formatCurrency}
                 tick={{ fill: 'var(--text-secondary)', fontSize: 11 }}
                 width={65}
-                label={{ value: valueKeys[0], angle: -90, position: 'insideLeft', offset: 5, fill: 'var(--text-secondary)', fontSize: 11 }}
               />
               <Tooltip content={<CustomTooltip />} />
               {valueKeys.length > 1 && <Legend />}
@@ -478,19 +479,17 @@ export default function ChartView({ chartData }) {
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
               <XAxis
                 dataKey={labelKey}
-                angle={-35}
+                angle={-45}
                 textAnchor="end"
-                tick={{ fill: 'var(--text-secondary)', fontSize: 11 }}
-                tickFormatter={(v) => truncateLabel(v, 25)}
+                tick={{ fill: 'var(--text-secondary)', fontSize: 10 }}
+                tickFormatter={(v) => truncateLabel(v, 18)}
                 interval={0}
                 height={80}
-                label={{ value: labelKey, position: 'insideBottom', offset: -5, fill: 'var(--text-secondary)', fontSize: 11 }}
               />
               <YAxis
                 tickFormatter={formatCurrency}
                 tick={{ fill: 'var(--text-secondary)', fontSize: 11 }}
                 width={65}
-                label={{ value: valueKeys[0], angle: -90, position: 'insideLeft', offset: 5, fill: 'var(--text-secondary)', fontSize: 11 }}
               />
               <Tooltip content={<CustomTooltip />} />
               <Legend />
@@ -503,20 +502,19 @@ export default function ChartView({ chartData }) {
 
         {activeType === 'hbar' && (
           <ResponsiveContainer width="100%" height={Math.max(300, data.length * 36)}>
-            <BarChart data={data} layout="vertical" margin={{ top: 10, right: 20, left: 10, bottom: 25 }}>
+            <BarChart data={data} layout="vertical" margin={{ top: 10, right: 20, left: 10, bottom: 10 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" horizontal={false} />
               <XAxis
                 type="number"
                 tickFormatter={formatCurrency}
                 tick={{ fill: 'var(--text-secondary)', fontSize: 11 }}
-                label={{ value: valueKeys[0], position: 'insideBottom', offset: -15, fill: 'var(--text-secondary)', fontSize: 11 }}
               />
               <YAxis
                 type="category"
                 dataKey={labelKey}
                 tick={{ fill: 'var(--text-secondary)', fontSize: 11 }}
-                tickFormatter={(v) => truncateLabel(v, 28)}
-                width={140}
+                tickFormatter={(v) => truncateLabel(v, 32)}
+                width={180}
               />
               <Tooltip content={<CustomTooltip />} />
               {valueKeys.length > 1 && <Legend />}
@@ -533,19 +531,17 @@ export default function ChartView({ chartData }) {
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
               <XAxis
                 dataKey={labelKey}
-                angle={-35}
+                angle={-45}
                 textAnchor="end"
-                tick={{ fill: 'var(--text-secondary)', fontSize: 11 }}
-                tickFormatter={(v) => truncateLabel(v, 25)}
+                tick={{ fill: 'var(--text-secondary)', fontSize: 10 }}
+                tickFormatter={(v) => truncateLabel(v, 18)}
                 interval={0}
                 height={80}
-                label={{ value: labelKey, position: 'insideBottom', offset: -5, fill: 'var(--text-secondary)', fontSize: 11 }}
               />
               <YAxis
                 tickFormatter={formatCurrency}
                 tick={{ fill: 'var(--text-secondary)', fontSize: 11 }}
                 width={65}
-                label={{ value: valueKeys[0], angle: -90, position: 'insideLeft', offset: 5, fill: 'var(--text-secondary)', fontSize: 11 }}
               />
               <Tooltip content={<CustomTooltip />} />
               {valueKeys.length > 1 && <Legend />}
@@ -570,19 +566,17 @@ export default function ChartView({ chartData }) {
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
               <XAxis
                 dataKey={labelKey}
-                angle={-35}
+                angle={-45}
                 textAnchor="end"
-                tick={{ fill: 'var(--text-secondary)', fontSize: 11 }}
-                tickFormatter={(v) => truncateLabel(v, 25)}
+                tick={{ fill: 'var(--text-secondary)', fontSize: 10 }}
+                tickFormatter={(v) => truncateLabel(v, 18)}
                 interval={0}
                 height={80}
-                label={{ value: labelKey, position: 'insideBottom', offset: -5, fill: 'var(--text-secondary)', fontSize: 11 }}
               />
               <YAxis
                 tickFormatter={formatCurrency}
                 tick={{ fill: 'var(--text-secondary)', fontSize: 11 }}
                 width={65}
-                label={{ value: valueKeys[0], angle: -90, position: 'insideLeft', offset: 5, fill: 'var(--text-secondary)', fontSize: 11 }}
               />
               <Tooltip content={<CustomTooltip />} />
               {valueKeys.length > 1 && <Legend />}
