@@ -1,0 +1,43 @@
+﻿Jun 2, 2026
+Meeting Jun 2, 2026 at 17:31 IST
+Meeting records Recording 
+
+
+
+
+Summary
+Discussed infrastructure optimization through Artificial Intelligence analytics and cloud transition strategies for improved cost efficiency.
+
+Optimizing On-premises Infrastructure
+Control plane nodes remain essential for high availability while Artificial Intelligence tools analyze 5 years of data to justify reducing worker nodes. Real-time observability provides necessary accuracy to improve infrastructure planning.
+
+Enhancing Financial Operations
+Leveraging Financial Operations assists market entry by highlighting efficient hardware utilization and reducing customer costs in Priority 1 contracts. This approach aligns with broader corporate strategies regarding hybrid and cloud transitions.
+
+Monitoring and Competitive Strategy
+The developed monitoring solution functions as a central hub for observing Software as a Service and hybrid workloads. Future competition submissions will leverage insights from Amazon Web Services to refine the value narrative.
+
+
+Rate this Summary: Helpful or Not Helpful
+
+
+
+
+Details
+* Optimization of Worker Nodes: It is not feasible to remove control plane nodes from the architecture because they are essential for high availability requirements. While performance testing may justify reducing the number of worker nodes, such suggestions should be based on long-term data, ideally covering five years rather than one, to ensure the worker nodes can handle incident volumes and operational demands.
+* Hardware Ownership and Customer Value: In many P1 contracts, the hardware is procured by the agency rather than the service provider. By offering solutions that allow for efficient hardware utilization, customer costs can be reduced, which in turn enhances the competitive edge in the market.
+* Leveraging FinOps for Market Entry: Utilizing FinOps can assist in overcoming market entry barriers, specifically in Asian regions where cost is a significant factor. This approach positions the solution as a way to provide optimal infrastructure configurations, which is necessary when elastic offloading to the cloud is not immediately available for on-premises systems.
+* AI-Driven Historical Usage Analysis: A proposed solution involves using an AI agent to analyze approximately five years of historical usage data to provide recommendations on infrastructure optimization. This agent can identify severely underutilized resources and suggest specific adjustments, such as reducing the number of worker nodes, without compromising on reliability or performance.
+* Strategic Alignment with Hybrid and Cloud Transitions: The suggested optimization solution aligns with broader corporate strategies to move workloads from on-premises environments to the cloud. By identifying underutilized on-premises resources, the solution helps organizations transition to hybrid or elastic cloud environments more effectively.
+* Limitations of Current Estimation Tools: Existing quotation tools used by sales and pre-sales teams rely on data from initial performance tests, which may not capture real-time usage or changes in incident volumes over time. Real-time observability, which captures actual CPU utilization and other performance metrics, is necessary to provide accurate infrastructure planning.
+* Hybrid Cluster and Cloud Fallback: By using an edge platform, it is possible to create hybrid clusters that leverage the elastic nature of the cloud as a backup or for surge capacity. Documented cases, such as incident spikes during weather events, demonstrate the efficacy of using the cloud to handle temporary increases in demand when on-premises capacity is reached.
+* Addressing Resource Wastage: The proposed solution aims to provide transparency and visibility into resource wastage, which is characterized as a significant issue. By providing clear reporting on utilization, the system acts as a FinOps control plane that enables data-driven decisions regarding when to spin up cloud resources based on specific utilization thresholds.
+* Competition and Judging Criteria: For upcoming project submissions, considerations are being made regarding whether to compete in the "Best in Tech" or "Best in Concept" categories. Insights from previous sessions with AWS and their Technical Account Manager are being used to refine the agent-core and workload analysis approach.
+* Development of the Monitoring Solution: The final monitoring system concept serves as a central hub for observing on-premises and SaaS workloads. It is intended to support goals related to hybrid approaches, cost reporting, and infrastructure planning.
+* Next Steps for Proof of Concept: The immediate path forward involves developing a proof of concept, collecting robust data sets, and refining the narrative to demonstrate the solution's value. Collaboration will continue to ensure the proposal is ready for demonstration.
+
+
+
+
+You should review Gemini's notes to make sure they're accurate. Get tips and learn how Gemini takes notes
+How is the quality of these specific notes? Take a short survey to let us know your feedback, including how helpful the notes were for your needs.

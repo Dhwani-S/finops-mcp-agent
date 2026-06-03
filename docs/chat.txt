@@ -1,35 +1,132 @@
-**User:** Compare my top AWS EC2 instances against equivalent Azure and GCP VMs
+**User:** Run a VM and disk rightsizing analysis on my Azure resources
+
+---
+
+> Tool: lookup_identity (sql)
+> Args: {
+  "search_term": "",
+  "search_by": "name"
+}
+> Result (62 chars): Error: SQL Server connection not available. Check credentials.
+
+**Agent:** I can help with that! First, what scope should I analyze?
+
+---
+
+**User:** Specific project or owner
 
 ---
 
 
-**Agent:** I can do that. Could you please provide the specific AWS EC2 instance types you'd like me to compare? Alternatively, I can look up your top 5 most expensive EC2 instances from last month and compare those.
+**Agent:** Who is the project owner? Please provide their name or Core ID.
 
 ---
 
-**User:** Jehan Wickramasuriya check for this
+**User:** Jehan Wickramasuriya
 
 ---
 
+> Tool: dry_run_query (bq)
+> Args: {
+  "sql": "\nWITH VmCosts AS (\n  SELECT\n    res_name,\n    SUM(azure_cost) AS monthly_cost,\n …"
+}
+> Result (148 chars): {"status": "ok", "bytes_estimated": 843909130, "gb_estimated": 0.79, "cost_estimated_usd": 0.0048, "message": "~0.8 GB (~$0.005). Safe to execute."}
 
-**Agent:** Got it. I will scope the analysis to resources owned by Jehan Wickramasuriya.
-
-First, should I look up the top 5 most expensive EC2 instances from last month under that name, or would you like to provide the specific instance types to compare?
+**Agent:** This query will scan approximately **0.79 GB** (~$0.0048). Shall I proceed?
 
 ---
 
-**User:** Compare my top 5
+**User:** Proceed
 
 ---
 
 > Tool: run_query (bq)
 > Args: {
-  "sql": "SELECT\n  product_instance_type,\n  SUM(total_cost) as cost\nFROM\n  `cie-costmanagement-prod-152136.aws.aws_daily_usage_extended_costs`\nWHERE\n  line_item_usage_start_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)\n  AND UPPER(executive_owner) = 'JEHAN WICKRAMASURIYA'\n  AND product_servicename = 'Amazon Elastic Compute Cloud'\n  AND product_instance_type IS NOT NULL\nGROUP BY\n  product_instance_type\nORDER BY\n  cost DESC\nLIMIT 5"
+  "sql": "\nWITH VmCosts AS (\n  SELECT\n    res_name,\n    SUM(azure_cost) AS monthly_cost,\n …"
 }
-> Result (313 chars): [{"product_instance_type": "t3.xlarge", "cost": 22744.143039}, {"product_instance_type": "g4dn.4xlarge", "cost": 9493.56729}, {"product_instance_type": "g4dn.2xlarge", "cost": 7854.055275}, {"product_instance_type": "g4dn.xlarge", "cost": 6691.831681}, {"product_instance_type": "m6i.large", "cost": 5035.957224}]
+> Result (62152 chars): [{"resource_name": "Tiada-webapp", "series": "Basv2", "monthly_cost": 47.24852588666666, "metric_name": "Memory %", "metric_value": 14.0}, {"resource_name": "am-temp6dbdb3cc", "series": "Dv3/DSv3", "monthly_cost": 99.107928025, "metric_name": "Memory %", "metric_value": 21.66666666666667}, {"resource_name": "am-tempdf835cbc", "series": "Dv3/DSv3", "monthly_cost": 99.10309169500003, "metric_name": "Memory %", "metric_value": 22.0}, {"resource_name": "az-dev-eastus", "series": "Ddsv4", "monthly_co
+> Tool: evaluate_vm_rightsizing (cross_examine)
+> Args: {
+  "method": "p95_30day",
+  "vm_metrics_json": "art:070da9ba12cf467a"
+}
+> Result (189751 chars): {
+  "method": "p95_30day",
+  "method_label": "Method 2 \u2014 P95 (30 Day)",
+  "total_vms_evaluated": 378,
+  "vms_with_findings": 145,
+  "total_potential_monthly_savings": 12786.3,
+  "results": [
+    {
+      "resource_name": "coturn-video-service_97e04a9f",
+      "series": "Dv3/DSv3",
+      "family": "general_purpose",
+      "metric_name": "Percent CPU",
+      "metric_value": 0.21083333333333334,
+      "monthly_cost": 134.24960908570534,
+      "findings": [
+        {
+          "rule_severity": "
+
+**Agent:** Based on the 30-day utilization analysis for Jehan Wickramasuriya's resources, I found significant opportunities for cost savings.
+
+### Rightsizing Summary
+
+| Metric                        | Value      |
+| ----------------------------- | ---------- |
+| Total VMs Evaluated           | 378        |
+| VMs with Findings             | 145        |
+| **Total Potential Savings** | **$12,786.30/mo** |
+
+Here are the top critical recommendations, sorted by potential savings:
+
+### Critical Recommendations: Idle VMs
+These VMs have had minimal CPU usage over the last 30 days and are candidates for deletion.
+
+| Resource Name                 | VM Series  | Monthly Cost | Recommendation                                           | Est. Monthly Savings |
+| ----------------------------- | ---------- | ------------ | -------------------------------------------------------- | -------------------- |
+| `coturn-video-service_97e04a9f` | Dv3/DSv3   | $134.25      | Idle: This machine has not done significant work in 30 days. Snapshot & Delete. | $134.25              |
+| `coturn-video-service_efa1cd27` | Dv3/DSv3   | $134.24      | Idle: This machine has not done significant work in 30 days. Snapshot & Delete. | $134.24              |
+
+The analysis also includes recommendations for downsizing oversized VMs and other optimizations. Would you like to see more details or export the full list of 145 recommendations?
+
+---
+
+**User:** Compare my top AWS EC2 instances against equivalent Azure and GCP VMs
+
+---
+
+
+**Agent:** I can do that. Should I continue to use the scope from our last analysis (owner: Jehan Wickramasuriya) or should I use a different scope? I can also run this for the entire organization.
+
+---
+
+**User:** Continue with Jehan Wickramasuriya
+
+---
+
+> Tool: dry_run_query (bq)
+> Args: {
+  "sql": "\nSELECT\n  product_instance_type,\n  SUM(total_cost) as total_cost\nFROM\n  `cie-cos…"
+}
+> Result (157 chars): {"status": "moderate", "bytes_estimated": 40507748766, "gb_estimated": 37.73, "cost_estimated_usd": 0.2303, "message": "~37.7 GB (~$0.23). Safe to execute."}
+
+**Agent:** This query will scan approximately **37.73 GB** (~$0.23). Shall I proceed?
+
+---
+
+**User:** Proceed
+
+---
+
+> Tool: run_query (bq)
+> Args: {
+  "sql": "\nSELECT\n  product_instance_type,\n  SUM(total_cost) as total_cost\nFROM\n  `cie-cos…"
+}
+> Result (343 chars): [{"product_instance_type": "t3.xlarge", "total_cost": 22744.143039}, {"product_instance_type": "g4dn.4xlarge", "total_cost": 9493.56729}, {"product_instance_type": "g4dn.2xlarge", "total_cost": 7854.055275}, {"product_instance_type": "g4dn.xlarge", "total_cost": 6691.831681}, {"product_instance_type": "m6i.large", "total_cost": 5035.957224}]
 > Tool: map_compute_instances (cross_examine)
 > Args: {
-  "instance_names": "[{\"cloud\": \"aws\", \"instance\": \"t3.xlarge\"}, {\"cloud\": \"aws\", \"instance\": \"g4dn.4xlarge\"}, {\"cloud\": \"aws\", \"instance\": \"g4dn.2xlarge\"}, {\"cloud\": \"aws\", \"instance\": \"g4dn.xlarge\"}, {\"cloud\": \"aws\", \"instance\": \"m6i.large\"}]"
+  "instance_names": "[{\"cloud\": \"aws\", \"instance\": \"t3.xlarge\"}, {\"cloud\": \"aws\", \"instance\": \"g4dn.4…"
 }
 > Result (4289 chars): {
   "results": [
@@ -54,19 +151,19 @@ First, should I look up the top 5 most expensive EC2 instances from last month u
           "vcpus": 4,
       
 
-**Agent:** Of course. Here is a comparison of the top 5 most expensive AWS EC2 instances owned by Jehan Wickramasuriya from the last 30 days against their closest equivalents in Azure and GCP.
+**Agent:** Here is a comparison of your top 5 AWS EC2 instances by cost against their closest equivalents in Azure and GCP.
 
-| AWS Instance | Monthly Cost (30 days) | Equivalent Azure VM (vCPU, Memory) | Equivalent GCP VM (vCPU, Memory) |
-| :--- | :--- | :--- | :--- |
-| `t3.xlarge` | $22,744.14 | `B4ls v2` (4, 8 GiB) | `e2-standard-4` (4, 8 GiB) |
-| `g4dn.4xlarge` | $9,493.57 | `B16as v2` (16, 64 GiB) | `e2-standard-16` (16, 64 GiB) |
-| `g4dn.2xlarge` | $7,854.06 | `B8as v2` (8, 32 GiB) | `e2-standard-8` (8, 32 GiB) |
-| `g4dn.xlarge` | $6,691.83 | `B4as v2` (4, 16 GiB) | `e2-standard-4` (4, 16 GiB) |
-| `m6i.large` | $5,035.96 | `D2ds v5` (2, 8 GiB) | `c3-standard-2` (2, 8 GiB) |
+| AWS Instance | Monthly Cost (30 days) | Equivalent Azure VM | Equivalent GCP VM | vCPUs | Memory |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **t3.xlarge** | $22,744.14 | Standard_B4ms | e2-standard-4 | 4 | 16 GiB |
+| **g4dn.4xlarge** | $9,493.57 | Standard_NC16as_T4_v3\* | n1-standard-16 + 1x NVIDIA Tesla T4\* | 16 | 110 GiB |
+| **g4dn.2xlarge** | $7,854.06 | Standard_NC8as_T4_v3\* | n1-standard-8 + 1x NVIDIA Tesla T4\* | 8 | 56 GiB |
+| **g4dn.xlarge** | $6,691.83 | Standard_NC4as_T4_v3\* | n1-standard-4 + 1x NVIDIA Tesla T4\* | 4 | 28 GiB |
+| **m6i.large** | $5,035.96 | Standard_D2s_v5 | n2-standard-2 | 2 | 8 GiB |
 
-*Note: The equivalents for the `g4dn` (GPU) instances are based on the closest vCPU and memory specifications, as a direct 1-to-1 mapping for specialized instances is not always available.*
+*\*The g4dn instances are GPU-accelerated. The equivalents shown are the closest GPU-enabled VMs on Azure and GCP. Direct price comparison for GPU instances is complex and depends heavily on the specific GPU model and licensing.*
 
-Would you like to explore pricing for these equivalent instances or perform a more detailed cost-saving analysis?
+This comparison provides a starting point for understanding how your current workloads might translate to other cloud platforms. For a more detailed cost analysis, we could investigate specific pricing models like reserved instances or savings plans.
 
 ---
 
@@ -76,83 +173,51 @@ Would you like to explore pricing for these equivalent instances or perform a mo
 
 > Tool: generate_what_if_scenario (cross_examine)
 > Args: {
-  "scenario_json": "{\n  \"services\": [\n    {\n      \"cloud\": \"AWS\",\n      \"service\": \"Amazon Elastic Compute Cloud\",\n      \"monthly_cost\": 51819.64,\n      \"action\": \"switch_to_gcp\"\n    }\n  ],\n  \"time_horizon_months\": 12\n}"
+  "scenario_json": "{\n  \"services\": [\n    {\n      \"cloud\": \"AWS\",\n      \"service\": \"t3.xlarge\",\n    …"
 }
-> Result (3347 chars): {
+> Result (8230 chars): {
   "scenario_summary": {
     "time_horizon_months": 12,
-    "total_current_cost": 621835.68,
-    "total_projected_cost": 528560.28,
-    "total_savings": 93275.4,
-    "savings_percent": 15.0
+    "total_current_cost": 621834.72,
+    "total_projected_cost": 514913.04,
+    "total_savings": 106921.68,
+    "savings_percent": 17.2
   },
   "service_projections": [
     {
-      "service": "Amazon Elastic Compute Cloud",
+      "service": "t3.xlarge",
       "cloud": "AWS",
       "action": "switch_to_gcp",
-      "current_monthly": 51819.64,
-      "current_total": 621835.68,
+      "current_monthly": 22744.14,
+      "current_total": 272929.68,
       "target_cloud": "GCP",
       "target_service": "Compute Engine",
-      "projected_monthly": 
+      "projected_monthly": 18195.31,
+      "
 
-**Agent:** Based on industry benchmarks, migrating your top 5 EC2 workloads from AWS to Google Cloud Platform could result in significant savings.
+**Agent:** Migrating your top 5 AWS workloads to Google Cloud Platform (GCP) could result in significant cost savings. Based on industry benchmarks, here is the estimated cost impact over a 12-month period:
 
-Here is the estimated cost impact:
+### Migration Savings Summary (12 Months)
 
-| Cost Summary | Current (AWS) | Projected (GCP) | Savings |
+| Metric | Value |
+| :--- | :--- |
+| Total Current AWS Cost | $621,834.72 |
+| Total Projected GCP Cost | $514,913.04 |
+| **Total Estimated Savings** | **$106,921.68** |
+| **Savings Percentage** | **17.2%** |
+
+### Cost Impact per Workload
+
+Here is a breakdown of the estimated monthly savings for each of your top workloads:
+
+| AWS Workload | Current Monthly Cost (AWS) | Projected Monthly Cost (GCP) | Estimated Monthly Savings |
 | :--- | :--- | :--- | :--- |
-| **Monthly** | $51,819.64 | $44,046.69 | **$7,772.95 (15.0%)** |
-| **Annual** | $621,835.68 | $528,560.28 | **$93,275.40** |
+| t3.xlarge | $22,744.14 | $18,195.31 | $4,548.83 |
+| g4dn.4xlarge | $9,493.57 | $7,974.60 | $1,518.97 |
+| g4dn.2xlarge | $7,854.06 | $6,597.41 | $1,256.65 |
+| g4dn.xlarge | $6,691.83 | $5,621.14 | $1,070.69 |
+| m6i.large | $5,035.96 | $4,280.57 | $755.39 |
 
-This projection is based on a benchmark pricing ratio where equivalent GCP Compute Engine resources are approximately **15%** less expensive than their AWS counterparts for this type of workload.
-
-Here is a chart visualizing the monthly cost comparison over a 12-month period:
-<chart>
-data:
-  type: line
-  title: What-If Cost Projection
-  x_axis: Month
-  y_axis: Cost (USD)
-  series:
-    - name: Current Cost
-      data:
-        - 51819.64
-        - 51819.64
-        - 51819.64
-        - 51819.64
-        - 51819.64
-        - 51819.64
-        - 51819.64
-        - 51819.64
-        - 51819.64
-        - 51819.64
-        - 51819.64
-        - 51819.64
-    - name: Projected Cost
-      data:
-        - 44046.69
-        - 44046.69
-        - 44046.69
-        - 44046.69
-        - 44046.69
-        - 44046.69
-        - 44046.69
-        - 44046.69
-        - 44046.69
-        - 44046.69
-        - 44046.69
-        - 44046.69
-</chart>
-
-***Disclaimer:** This is a high-level estimate based on industry benchmarks. Actual savings can vary based on your specific negotiated pricing, usage patterns, and commitment levels (e.g., reserved instances vs. on-demand). This estimate does not include one-time costs associated with migration, such as data transfer or engineering effort.*
-
----
-
-**User:** Run a VM and disk rightsizing analysis on my Azure resources
-
----
-
+**Disclaimer:** These estimates are based on industry-standard pricing ratios for equivalent services. Actual savings may vary depending on your final architecture, usage patterns, and any negotiated discounts with GCP. The cost projection for GPU instances (g4dn) is particularly sensitive to the specific configuration on the target platform.
 
 ---

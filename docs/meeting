@@ -1,0 +1,116 @@
+Jun 2, 2026
+FinOps Agent 
+Invited Pavan Kumar Adiveni Rakesh Pendyala Keshav Kaviti Rithvik Banka Vital Sarma Chayanam Dhwani Suthar Chetan Navalli Sanjana Pothuri Adnan Vahora
+Attachments FinOps Agent  FinOps Agent  - 2026/06/02 11:56 IST - Recording
+Meeting records Recording 2 Recording 
+
+
+
+
+Summary
+AI agent development and FinOps strategies enable automated cost management and infrastructure efficiency across multi cloud environments.
+
+AI Cost Management Strategy
+AI agents provide automated cost forecasting and anomaly detection to enhance financial transparency. Integration with Model Context Protocol apps secures UI rendering and improves developer workflows.
+
+Performance Optimization Success
+Strategic rate optimization and volume adjustments successfully exceeded financial savings goals for the year. Behavioral economics and automated reporting tools effectively drive cost-conscious culture across the organization.
+
+Efficiency Dividend Implementation
+Proposing a Cloud Efficiency Dividend policy creates financial accountability by returning savings to optimized teams. Centralizing infrastructure control further enables comprehensive visibility across cloud and on-premise resources.
+
+
+Rate this Summary: Helpful or Not Helpful
+
+
+
+
+Decisions
+ALIGNED
+* Three platform entry points for agent The team agreed that the AI agent will be accessible via three primary entry points: developer IDEs (VS Code), the CPS portal sidebar, and the First Responder tool.
+* Shifting CPS team strategic positioning The team decided to shift the CPS group's strategic positioning from being an internal-only team to establishing an external presence that influences pricing, market strategy, and unit cost.
+* CPS strategy overview deck pillars The CPS strategy presentation will define the organization's approach across three core pillars: transparent cost reporting, accountability through project mapping, and advanced cost modeling for Kubernetes and observability.
+* GitHub and Kubernetes cost analysis roadmap The team agreed to include a feature in the product roadmap that provides cost forecasting and analysis for Kubernetes and GitHub workflows.
+
+
+We've updated the Decisions section using your feedback.
+Let us know what you think: Helpful or Not Helpful
+
+
+
+
+Next steps
+* [The group] Watch Special Ops: Watch the third season of the show Special Ops to understand the intelligence and technology context for upcoming work.
+* [Rakkesh, someone in ZIN110-BANGALORE-04-KADAMBA (8)] Update Product Knowledge: Ensure that the core knowledge for all products is integrated into the CPS portal.
+* [Rakkesh, someone in ZIN110-BANGALORE-04-KADAMBA (8)] Write Newsletter Article: Draft and submit an article regarding a foundry for the upcoming newsletter.
+* [Someone in ZIN110-BANGALORE-04-KADAMBA (8)] Schedule Production Call: Schedule a meeting to discuss and explain the integration of the agent into production.
+* [The group] Predict Kubernetes Costs: Implement Kubernetes cost prediction functionality based on current usage trends within the agent.
+* [Someone in ZIN110-BANGALORE-04-KADAMBA (8)] Recruit Champion: Engage a finance expert to facilitate cross pollination of knowledge and best practices for cost optimization.
+* [The group] Implement Mapping AI: Develop an intelligent solution that uses usage trends to map unallocated resources to specific products.
+* [The group] Distribute Weekly Insights: Configure and distribute automated weekly emails that provide actionable cost insights instead of static dashboards.
+* [Someone in ZIN110-BANGALORE-04-KADAMBA (8)] Finalize Dividend Proposal: Complete the cloud efficiency dividend policy proposal by Thursday.
+* [Someone in ZIN110-BANGALORE-04-KADAMBA (8)] Present Proposal: Pitch the cloud efficiency dividend policy to CFO Andrew Hajjens next week.
+* [The group] Conduct Demo: Perform a demonstration of the cloud efficiency dividend model for the entire team.
+* [The group] Calculate Dividends: Use the established formula to compute efficiency dividends for teams.
+* [Someone in ZIN110-BANGALORE-04-KADAMBA (8)] Update Roadmap: Incorporate Kubernetes YAML file analysis into the product roadmap to estimate cost impacts prior to deployment.
+* [The group] Integrate Unit Cost Model: Embed the product level economic model into the platform to track expenses across different services.
+* [Someone in ZIN110-BANGALORE-04-KADAMBA (8)] Hold scorecards: Hold a call with AWS, Azure, and GCP to present and review cloud scorecard performance metrics.
+* [Someone in ZIN110-BANGALORE-04-KADAMBA (8)] Collect feedback: Gather and consolidate internal user feedback regarding cloud usage to identify improvement areas for providers.
+* [The group] Develop model: Create a proof of concept for volume optimization and on-prem resource efficiency calculations.
+* [Ran] Integrate data: Pull private cloud data into the Grafana platform to support resource tracking.
+
+
+
+
+Details
+Did the screenshots in this section make your notes better or worse?
+* AI Agent Development and Cost Forecasting: someone in ZIN110-BANGALORE-04-KADAMBA (8) introduces a new forecast feature designed to assist development teams in managing fixed budgets by providing insights into cost structures. The proposed agent includes functionalities such as cost reviews, cross-cloud comparisons, anomaly detection (investigating spikes), and trend analysis, though the team acknowledges that these features require further refinement.
+  
+
+* Scope Definition for Cost Management: someone in ZIN110-BANGALORE-04-KADAMBA (8) explains that the agent allows users to define the scope of their queries at runtime, preventing trivial and expensive data requests. By explicitly selecting the scope (e.g., a specific team or project), users can restrict the amount of data queried from BigQuery, thereby reducing token usage and costs.
+* Cost Transparency and Elicitation: To prevent excessive spending, the agent provides cost estimates for BigQuery requests before they are executed, requiring user consent. This feature is intended to bring financial awareness to AI interactions, which aligns with recent feedback from leadership regarding the need for better token economics and unit cost visibility.
+* Reporting Bottlenecks and AI Maturity: someone in ZIN110-BANGALORE-04-KADAMBA (8) identifies that the organization currently faces challenges in AI financial reporting, specifically regarding a lack of visibility into token economics, sales metrics, and unit costs. This is noted as a significant weakness compared to the standards expected for a generative AI portal.
+* Integration via MCP Apps: The team discusses using Model Context Protocol (MCP) apps to integrate the Cloud Platform Services (CPS) portal directly into Integrated Development Environments (IDEs) like Visual Studio Code. This approach uses iFrames to render components within the IDE, providing a way to preserve brand identity and maintain security without relying on unpredictable generative user interfaces.
+* Deployment Strategy: The team outlines a three-pronged deployment strategy for the AI agent: integrating it into the developer's IDE (Visual Studio Code), deploying it within the CPS portal sidebar, and potentially establishing it as a first responder tool accessible via platforms like Google.
+* Context Links and Role-Based Access: someone in ZIN110-BANGALORE-04-KADAMBA (8) details the concept of "context links," which aim to aggregate tribal knowledge while respecting privacy. The vision for the first responder tool includes the development of private namespaces, ensuring that teams can restrict data access so that only authorized personnel can view sensitive project information.
+* Master Agent Orchestration: The master agent functions as an orchestrator that manages complex workflows involving multiple agents. It creates a plan to connect disparate agents—such as infrastructure or incident response agents—and ensures that data is correctly passed between them to resolve issues, such as production outages, without requiring manual intervention for every step.
+* Artifacts and Efficiency: To manage TB-scale data, the team utilizes "artifacts" to guide the Large Language Model (LLM) to specific data sources rather than processing entire datasets. This method, along with caching, is designed to reduce context bloat, save on token costs, and improve performance by avoiding redundant processing of similar queries.
+* Cost Management and BigQuery Integration: The team confirms that all current operations are built on BigQuery and that they are transitioning cost management APIs to the Analytics Hub. They emphasize that they maintain granular control over query costs through a custom "loop" that acts as the agent's brain, allowing them to map users to specific department IDs without needing external licenses.
+* Internal Reporting and Token Optimization: Users can query data specific to their own projects rather than the entire organization’s data set. This restriction helps users maintain internal reports while keeping token usage and associated costs low.
+* Future Goals and Newsletter Contributions: someone in ZIN110-BANGALORE-04-KADAMBA (8) and Chetan Navalli discuss plans to contribute an article about "foundry" and personalized AI to an upcoming newsletter. This initiative is positioned as a way to share the team's progress and goals.
+* Caching and Query Refresh Logic: Caching is utilized to improve query times and reduce costs by reusing previous responses. However, someone in ZIN110-BANGALORE-04-KADAMBA (8) clarifies that if a user changes the parameters of a query, such as extending the timeline from six months to one year, the cache is bypassed, and the agent must fetch fresh data.
+* Cross-Cloud Capabilities: While the current focus is on project-specific and team-level analysis, someone in ZIN110-BANGALORE-04-KADAMBA (8) confirms that the agent is capable of performing cross-cloud comparisons across Azure, AWS, and Google Cloud Platform.
+* Presentation Planning and User Journey: The team plans to present an overview of these capabilities to leadership. They agree that the presentation should focus on user journeys, specifically showing a partner team member logging in and interacting with the system, to build context before delving into technical details like MCP apps and architecture.
+* MCP Apps and Secure Sandboxing: The team reviews the technical benefits of MCP apps, which provide a secure, sandbox environment for rendering UI components. This architecture allows the agent to present interactive elements like dropdowns or calendars within the IDE safely, preventing potential issues such as token hijacking or unpredictable user interface generation.
+* Strategic Focus and Intelligence: someone in ZIN110-BANGALORE-04-KADAMBA (8) argues that the team should solve for "intelligence and strategy" rather than just dashboarding, aiming to move beyond the functions provided by standard tools like PowerBI. The objective is to elevate the agent's role to provide deeper strategic insights for the organization.
+* CPS Financial Framework and FinOps: In an overview of the CPS financial framework, someone in ZIN110-BANGALORE-04-KADAMBA (8) highlights the importance of transparency, accountability, and the mapping of costs across various cloud providers. The team notes their progress in achieving high-accuracy cost mapping (reaching 99.9%) and their capability to handle costs for Kubernetes and observability, which remains a challenge for many other organizations.
+* FinOps Vision and Architectural Optimization: someone in ZIN110-BANGALORE-04-KADAMBA (8) defines the objective of the team as shifting from basic cost reporting to true FinOps efficiency, where the goal is to optimize cloud architecture and maximize resources using AI to analyze usage patterns. The team seeks to answer complex questions about whether current services, such as Cosmos DB, are the most cost-effective choices compared to alternatives like MongoDB, thereby moving beyond simple PowerBI dashboards to provide actionable insights.
+* Mapping and Security Compliance: The team aims to improve resource mapping, noting that 99.9% of resources are currently mapped, with a goal to automate the remaining 0.1% using an intelligence layer to suggest proper product categorization. Someone in ZIN110-BANGALORE-04-KADAMBA (8) emphasizes that FinOps requires robust security reviews because the ability to correlate service names, quantities, and product names allows for the reverse engineering of cloud architecture, potentially exposing sensitive infrastructure details.
+* Evolution of Reporting and SaaS Modeling: Moving forward, the team plans to transition away from static dashboards by implementing configurable weekly emails and better SaaS cost modeling to distribute costs more effectively. Someone in ZIN110-BANGALORE-04-KADAMBA (8) highlights the importance of using technology to suggest better cost allocation models, noting that the team can act as skilled negotiators who use data to justify preferred financial models.
+* Rate Optimization and Financial Performance: The team reports significant success in rate optimization through forward contracts, securing a 45% discount on virtual machines, which contributes to an 80% portion of total savings. For the current year, the team promised $15 million in savings, achieved $17.5 million by mid-Q2, and is on track to exceed $20 million, effectively contributing 0.8% toward a 1% annual margin target.
+* Volume and SKU Usage Optimization: A key focus is on "volume relationship" optimization, which involves ensuring that provisioned Stock Keeping Units (SKUs) match actual user needs, such as downgrading from high-end devices like MacBook Pros to more appropriate hardware if the usage requirements are lower. The team identifies a gap in Cloud Service Provider (CSP) recommendations, which only cover 4–5 SKUs, necessitating the creation of custom in-house recommendations for computer and storage usage.
+* Technical Data Challenges and Intelligence Layers: someone in ZIN110-BANGALORE-04-KADAMBA (8) explains that while usage data has been pulled into databases, presenting time-series data via PowerBI is difficult, driving the need for an intelligence layer that reads rules and provides specific cost-saving actions. The team aims to compress total MSI costs by 30%, building on an existing 20% compression, with someone in ZIN110-BANGALORE-04-KADAMBA (8) noting that this mature approach has been well-received in industry benchmarks, including during the 2023 GCP contract negotiations.
+* Environment Rationalization and Decommissioning: The team performs environment rationalization to identify and decommission underutilized assets, with someone in ZIN110-BANGALORE-04-KADAMBA (8) providing the example of paying 1 crore monthly for office space that is significantly disproportionate to the actual employee output, aiming to reallocate these funds toward more efficient outcomes.
+* "Ask Me" Implementation and Kubernetes Migration: The team has integrated an "Ask Me" feature to leverage LLM capabilities (specifically Gemini) to provide recommendations, and they are currently migrating from self-managed environments to Azure Kubernetes Service (AKS) to ensure each partner has a distinct cluster, which simplifies cost tracking.
+* Stakeholder Engagement and Automated Readouts: someone in ZIN110-BANGALORE-04-KADAMBA (8) stresses the importance of building deep relationships with developers, site leads, and business unit stakeholders to ensure widespread adoption of FinOps practices. The team is exploring proposals to automate the creation of readout reports, potentially utilizing voice-over technology and tools like NotebookLM to streamline the communication of cost, anomaly, and marketing savings reports to partner teams.
+* FinOps Champions Program: The FinOps Champions program has grown to over 70 members, covering 95% of MSI cloud spend, and generated $3 million in savings last year. Someone in ZIN110-BANGALORE-04-KADAMBA (8) highlights the program's maturity and the need for a "human in the loop" to execute recommendations, positioning the champions as influential agents who drive cost-conscious culture.
+* Cloud Efficiency Dividend Proposal: To close the feedback loop and incentivize behavior, the team is proposing a "Cloud Efficiency Dividend" policy, which would return a portion (e.g., 5%) of realized savings to the teams that optimized their costs. The team plans to finalize this proposal by Thursday and present it to MSI CFO Andrew Hajjens the following week, hoping to establish a first-of-its-kind corporate policy that fosters accountability.
+* Behavioral Economics and Incentive Forecasting: By implementing the dividend in two tranches (H1 and H2), the team aims to create a culture of accountability where teams are motivated to maintain optimization throughout the year to secure their budget. Someone in ZIN110-BANGALORE-04-KADAMBA (8) suggests utilizing behavioral economics—specifically "nudging"—to frame budget overruns as margin impacts, which can discourage waste more effectively than traditional top-down reporting.
+* Multi-Cloud Intelligence and Procurement Support: The team provides vital intelligence on usage and forecasts to procurement teams, enabling successful negotiations for discounts across Azure (23%), AWS, and GCP. A recent negotiation for an AWS S3 deal, based on usage forecasts, secured a 30% discount instead of the standard 23%, resulting in $5 million in savings.
+* Unit Economics Initiatives: The team is working on unit economics at the product level to track cost per product, cost per core, and cost per GB, with the Kodiak project already completed. This framework provides a granular view that helps executives and procurement leaders make informed decisions about compute and storage ratios during contract negotiations.
+* Comparative Cloud Advantage and Migration Advisory: The team is developing a "Cross-examine" model to provide a common language for comparing costs between cloud providers, helping business units evaluate the cost impact of migrating workloads (e.g., from Azure to GCP). This initiative includes cloud scorecarding, which informs placement advisory decisions and helps teams understand the long-term savings potential of choosing the optimal cloud environment for their specific architecture.
+* Cloud Service Provider Performance Scorecard: someone in ZIN110-BANGALORE-04-KADAMBA (8) intends to introduce a scorecard system for major cloud service providers, including Amazon Web Services, Azure, and Google Cloud Platform. This initiative aims to evaluate services based on performance, cost, and service quality rather than just cost alone, serving as a foundation for workload placement advisory. They plan to hold calls with these providers to review specific scorecard metrics and ensure alignment with the organizational requirements.
+* Workload Placement Advisory and Automation: By leveraging existing cost data, the team can understand organizational usage patterns and provide guidance on the most effective environment for specific workloads. The vision includes automating this process so that, during cluster automation, the system can offer intelligent suggestions for the best cloud environment based on shared components.
+* Automated Chargeback Management: The team manages chargebacks for the entire Motorola Solutions area, which helps in maintaining budget compliance and operational efficiency. This automated management supports cost control and protects roles within the organization by ensuring financial discipline.
+* Cloud Sustainability and Carbon Reporting: Efficient cloud utilization directly contributes to carbon reduction by minimizing power consumption in data centers. Motorola Solutions includes data on carbon savings resulting from cloud optimization in official reports, which are accessible to the board and external investors. The organization aims to continue providing this transparency, noting that it might be the only product team with data flowing directly into the Motorola Solutions website regarding such contributions.
+* Green Economics and Narrative Building: To encourage further optimization, the team plans to link cost savings to environmental benefits, such as the number of trees saved. The strategy involves creating a narrative that illustrates the positive impact of efficiency measures, and they may produce videos to highlight these benefits to stakeholders. This approach, referred to as economics or software asset management, aims to extend the cloud mindset even to on-premise environments.
+* Optimizing On-Premise Resource Utilization: While 80 percent of costs currently stem from on-premise infrastructure, the team aims to apply cloud-based cost and usage tracking methods to these resources. By leveraging virtualization, they plan to monitor the resource utilization of on-premise hardware to identify underutilized or overutilized assets. This visibility acts as a nudge for architecture changes, potentially allowing for significant cost reductions even if only a small percentage of on-premise resources are optimized.
+  
+
+* Centralized Infrastructure Control Plane: The team envisions becoming a central control plane for all Motorola Solutions infrastructure, encompassing both cloud and on-premise procurement. This would allow for informed hardware refresh decisions, enabling adjustments to server configurations—such as shifting from 2U to 1U servers—based on actual data center needs and customer hypervisor layers. They plan to use Grafana and data from the private cloud to fuel these recommendations, with a goal of becoming a leader in this space by providing comprehensive efficiency insights.
+
+
+
+
+You should review Gemini's notes to make sure they're accurate. Get tips and learn how Gemini takes notes
+How is the quality of these specific notes? Take a short survey to let us know your feedback, including how helpful the notes were for your needs.
