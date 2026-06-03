@@ -1,0 +1,1030 @@
+Session 5 - Planning and Reasoning with Language Models
+Little Bit of Python First
+uv - The Next Generation Python Package Manager
+Ref
+
+Python packaging got a serious upgrade two years back. Say hello to uv a supercharged, modern replacement for tools like pip, pip-tools, and virtualenv. Built in Rust for performance and designed by the maintainers of Ruff, uv aims to make Python development faster, simpler, and less frustrating.
+
+uv bring:
+
+Lightning-fast installs and dependency resolution
+Seamless virtual environment management
+Automatic lock file generation
+Compatible with pyproject.toml, requirements.txt, and more
+Installing uv
+
+Before using uv, install it via pip (possibly your last usage of pip):
+
+pip install uv
+Common uv Commands:
+
+uv init my_project
+
+I:\New folder>uv init my_project
+Initialized project `my-project` at `I:\New folder\my_project`
+I:\New folder>cd my_project
+I:\New folder\my_project>ls -la
+total 4
+drwxr-xr-x 1 Rohan 197609   0 Mar 31 16:30 .
+drwxr-xr-x 1 Rohan 197609   0 Mar 31 16:30 ..
+drwxr-xr-x 1 Rohan 197609   0 Mar 31 16:30 .git
+-rw-r--r-- 1 Rohan 197609 109 Mar 31 16:30 .gitignore
+-rw-r--r-- 1 Rohan 197609   4 Mar 31 16:30 .python-version
+-rw-r--r-- 1 Rohan 197609   0 Mar 31 16:30 README.md
+-rw-r--r-- 1 Rohan 197609  88 Mar 31 16:30 main.py
+-rw-r--r-- 1 Rohan 197609 155 Mar 31 16:30 pyproject.toml
+This does the following for you:
+
+Creates a new directory my_project
+Generates a pyproject.toml
+A TOML file is a configuration file format (Tom's Obvious, Minimal Language). It is a simpler, cleaner alternative to JSON or YAML, used in Python and Rust projects.
+Here's a basic example:
+[project]
+name = "my-awesome-app"
+version = "0.1.0"
+description = "An example project using TOML"
+authors = ["Your Name <you@example.com>"]
+
+[dependencies]
+requests = "^2.31.0"
+pydantic = "^2.6"
+.git a hidden folder initialized by Git.
+.gitignore file that tells Git which files/folders to ignore (not track)
+.python-version stores the Python Version for the virtual environment. Helps the tools like pyenv or uv know which Python version to use for this project.
+README.md a markdown file for writing project documentation.
+main.py the default starter Python file
+Initializes a uv.lock file. It records the exact version of every package (and sub-dependency) installed in your project at a specific point in time.
+uv run main.py
+
+I:\New folder\my_project>uv run main.py
+Using CPython 3.9.7 interpreter at: I:\Installs\python.exe
+Creating virtual environment at: .venv
+Hello from my-project!
+uv looks for a .venv folder in your project. If none exists, it will automatically create one using the Python version specified in .python-version.
+I:\New folder\my_project>ls -la
+total 9
+drwxr-xr-x 1 Rohan 197609   0 Mar 31 16:53 .
+drwxr-xr-x 1 Rohan 197609   0 Mar 31 16:30 ..
+drwxr-xr-x 1 Rohan 197609   0 Mar 31 16:30 .git
+-rw-r--r-- 1 Rohan 197609 109 Mar 31 16:30 .gitignore
+-rw-r--r-- 1 Rohan 197609   4 Mar 31 16:30 .python-version
+drwxr-xr-x 1 Rohan 197609   0 Mar 31 16:53 .venv
+-rw-r--r-- 1 Rohan 197609   0 Mar 31 16:30 README.md
+-rw-r--r-- 1 Rohan 197609  88 Mar 31 16:30 main.py
+-rw-r--r-- 1 Rohan 197609 155 Mar 31 16:30 pyproject.toml
+-rw-r--r-- 1 Rohan 197609 129 Mar 31 16:53 uv.lock
+It sets everything up for isolation, so your global Python package doesn't interfere.
+no need to run python -m venv or source .venv/bin/activate.
+So, in simple terms:
+uv run main.py is equal to
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python main.py
+uv add matplotlib
+
+I:\New folder\my_project>uv add matplotlib
+Resolved 18 packages in 812ms
+Prepared 12 packages in 3.55s
+████████████████████████████████ [0/13] Installing wheels...
+Installed 13 packages in 1.44s
+ + contourpy==1.3.0
+ + cycler==0.12.1
+ + fonttools==4.56.0
+ + importlib-resources==6.5.2
+ + kiwisolver==1.4.7
+ + matplotlib==3.9.4
+ + numpy==2.0.2
+ + packaging==24.2
+ + pillow==11.1.0
+ + pyparsing==3.2.3
+ + python-dateutil==2.9.0.post0
+ + six==1.17.0
+ + zipp==3.21.0
+
+I:\New folder\my_project>
+uv add package_name is the command to add new dependencies to your project.
+It installs the package into your virtual environment
+Adds it to your pyproject.toml under [dependencies] section
+Updates your uv.lock with the exact version and all sub-dependencies
+This is the fastest way to install packages in the Milky Way Galaxy as of now.
+uv remove package_name to remove a package (uv will take care of other updates as well).
+uv sync
+
+This command installs exactly what's listed in your uv.lock main.py file, ensuring your virtual environment perfectly matches the locked dependent version.
+uv tree
+
+I:\New folder\my_project>uv tree
+Resolved 18 packages in 1ms
+my-project v0.1.0
+└── matplotlib v3.9.4
+    ├── contourpy v1.3.0
+    │   └── numpy v2.0.2
+    ├── cycler v0.12.1
+    ├── fonttools v4.56.0
+    ├── importlib-resources v6.5.2
+    │   └── zipp v3.21.0
+    ├── kiwisolver v1.4.7
+    ├── numpy v2.0.2
+    ├── packaging v24.2
+    ├── pillow v11.1.0
+    ├── pyparsing v3.2.3
+    └── python-dateutil v2.9.0.post0
+        └── six v1.17.0
+This command shows you a visual dependency tree of your Python packages.
+uv run --with package_name main.py
+
+I:\New folder\my_project>uv run main.py
+Traceback (most recent call last):
+  File "I:\New folder\my_project\main.py", line 1, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+
+I:\New folder\my_project>uv run --with torch main.py
+Installed 9 packages in 20.39s
+Hello from my-project!
+
+I:\New folder\my_project>uv run main.py
+Traceback (most recent call last):
+  File "I:\New folder\my_project\main.py", line 1, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+
+I:\New folder\my_project>
+Sometimes you want to run a script with a one-time dependency, without permanently adding it to your project (for example, testing a specific version of torch, etc). The above line will install torch only for this run!
+Does not update your pyproject.toml or uv.lock.
+After the command runs, it cleans up, with no long-term changes to your environment.
+MOST IMPORTANTLY
+
+uv caches wheels and source distributions after the first download.
+The next time you install the same package and version:
+it grabs it directly from the cache
+No need to redownload from PyPI
+This dramatically speeds up repeat installs, even across different projects!
+Pydantic — the data shape of modern agentic Python
+Pydantic is a typed-data library. You declare the shape of your data as a Python class, and Pydantic gives you four things at once:
+
+Validation at construction time — bad data fails loudly, with the field name in the error.
+Coercion — strings, ints, dicts get cleaned up into the types you declared.
+JSON Schema generation — every model can emit its own JSON Schema, the same shape every LLM tool-calling API expects.
+JSON round-trip — model.model_dump_json() out, Model.model_validate_json(...) back in.
+That fourth and third properties are why every modern agent framework — Claude Agent SDK, OpenAI Agents SDK, LangGraph, Pydantic AI, the LLM gateway you're using — sits on top of Pydantic. The same class is your runtime validator and the tool definition the model reads.
+
+We use Pydantic v2. Old code uses v1; the syntax differs in places. v2 is the default in 2026.
+
+pip install pydantic
+1. Hello Pydantic
+from pydantic import BaseModel, Field
+
+class WeatherQuery(BaseModel):
+    city: str = Field(description="City name")
+    units: str = "celsius"
+    days_ahead: int = Field(default=0, ge=0, le=7)
+
+q = WeatherQuery(city="Bangalore", days_ahead=3)
+print(q)              # city='Bangalore' units='celsius' days_ahead=3
+print(q.city)         # Bangalore
+You wrote a class. You got attribute access, equality, repr, and a default value — same as @dataclass. You also got the next three properties for free.
+
+2. Validation — wrong data fails at the boundary, not three calls later
+WeatherQuery(city="Bangalore", days_ahead=99)
+ValidationError: 1 validation error for WeatherQuery
+days_ahead
+  Input should be less than or equal to 7  [type=less_than_equal, input_value=99]
+The error names the field. Compare to a plain dict, where 99 would silently flow into your tool and fail downstream with an unrelated stack trace. The single best reason to use Pydantic on LLM output: when the model hallucinates a wrong field, you find out immediately.
+
+3. Coercion — strings become typed objects
+WeatherQuery(city="Bangalore", days_ahead="3")   # string → int
+# WeatherQuery(city='Bangalore', units='celsius', days_ahead=3)
+LLMs sometimes return "3" instead of 3. Pydantic coerces silently when the conversion is unambiguous. (You can turn this off with model_config = ConfigDict(strict=True) if you want strict typing.)
+
+4. Validators — encode the rules LLMs are most likely to break
+Two kinds, one purpose: enforce invariants at the boundary.
+
+from pydantic import BaseModel, field_validator, model_validator
+
+class FlightSearch(BaseModel):
+    origin: str
+    destination: str
+    passengers: int
+
+    @field_validator("origin", "destination")
+    @classmethod
+    def upper_iata(cls, v: str) -> str:
+        v = v.strip().upper()
+        if len(v) != 3 or not v.isalpha():
+            raise ValueError(f"expected 3-letter IATA code, got {v!r}")
+        return v
+
+    @model_validator(mode="after")
+    def origin_differs_from_destination(self) -> "FlightSearch":
+        if self.origin == self.destination:
+            raise ValueError("origin and destination must differ")
+        return self
+
+
+FlightSearch(origin="blr", destination="Bom", passengers=2)
+# FlightSearch(origin='BLR', destination='BOM', passengers=2)
+
+FlightSearch(origin="BLR", destination="BLR", passengers=1)
+# ValidationError: origin and destination must differ
+field_validator runs on one field; it can normalise ("blr" → "BLR").
+model_validator(mode="after") runs once the whole object is built; it enforces cross-field rules.
+5. JSON Schema for free — the killer feature for agents
+Every frontier tool-calling API (Anthropic, OpenAI, Gemini, MCP servers, our llm_gatewayV2) takes tool definitions as JSON Schema. Pydantic hands you that schema in one call.
+
+class Add(BaseModel):
+    """Return a + b."""
+    a: float = Field(description="First number")
+    b: float = Field(description="Second number")
+
+print(Add.model_json_schema())
+{
+  "type": "object",
+  "properties": {
+    "a": {"type": "number", "description": "First number"},
+    "b": {"type": "number", "description": "Second number"}
+  },
+  "required": ["a", "b"],
+  "title": "Add"
+}
+That JSON goes straight into a tool definition:
+
+tool = {
+    "name": "add",
+    "description": (Add.__doc__ or "").strip(),
+    "input_schema": Add.model_json_schema(),
+}
+# This is exactly what llm_gatewayV2's `tools=[...]` parameter expects.
+One source of truth. The same class:
+
+Validates the model's tool-call arguments at runtime
+Generates the schema the model sees when picking a tool
+Round-trips through JSON without a custom parser
+6. Structured output — the model's response IS a Pydantic object
+The other half of the agent loop. When you want the model's final answer to fit a shape (a plan, a verdict, an extraction), hand the provider the schema and read a validated instance back.
+
+from typing import Literal
+
+class Verdict(BaseModel):
+    passed: bool
+    reason: str
+    final_answer: float
+
+
+# llm_gatewayV2 example:
+reply = llm.chat(
+    prompt="Was the math correct? Reply as a Verdict.",
+    response_format={
+        "type": "json_schema",
+        "schema": Verdict.model_json_schema(),
+        "name": "Verdict",
+        "strict": True,
+    },
+)
+v = Verdict.model_validate(reply["parsed"])
+print(v.passed, v.reason, v.final_answer)
+The provider constrains generation to valid JSON matching the schema. The gateway validates server-side and gives you a parsed dict. You hand it to Verdict.model_validate(...) and you have a typed Python object — no JSON parser, no field guessing, no try/except around int().
+
+7. JSON round-trip
+q = WeatherQuery(city="Bangalore", days_ahead=3)
+
+s = q.model_dump_json()                    # to JSON string
+print(s)                                   # {"city":"Bangalore","units":"celsius","days_ahead":3}
+
+q2 = WeatherQuery.model_validate_json(s)   # back to typed object
+assert q == q2
+Useful for: logs, snapshots, sending state across processes, replaying an agent trace, persisting plans to disk.
+
+8. BaseModel vs @dataclass — when to use which
+Use @dataclass when…	Use BaseModel when…
+The data is built inside your code	The data arrives from outside (LLM, HTTP, config, user)
+You want a plain container with no overhead	You want validation + schema + JSON round-trip
+It will be passed straight to another function you trust	It will be used to drive a tool, a database write, or anything irreversible
+The rule of thumb: trust boundaries. Anything crossing one needs a BaseModel. The cost of using BaseModel everywhere is microseconds; the cost of skipping validation on LLM output is debugging at 2 AM.
+
+9. The pattern you'll see in every agent codebase
+# 1. Define the tool's input shape ONCE
+class WriteFile(BaseModel):
+    """Write text content to a file inside the sandbox."""
+    path: str = Field(description="Path relative to the sandbox root")
+    content: str = Field(description="Full text content to write")
+
+
+# 2. Convert to a tool definition the LLM will see
+tool_def = {
+    "name": "write_file",
+    "description": (WriteFile.__doc__ or "").strip(),
+    "input_schema": WriteFile.model_json_schema(),
+}
+
+
+# 3. When the model calls the tool, validate its arguments with the same class
+def dispatch(name: str, raw_args: dict) -> str:
+    if name == "write_file":
+        args = WriteFile.model_validate(raw_args)   # raises if bad
+        return do_write(args.path, args.content)
+Three uses of WriteFile. One source of truth. No parser. No if "path" in raw_args else …. This is what Session 5 means by "Pydantic on every boundary."
+
+10. Cheatsheet
+class M(BaseModel): ...
+
+# Build
+m = M(field=value)                        # validates
+m = M.model_validate({"field": value})    # from dict
+m = M.model_validate_json(json_str)       # from JSON string
+
+# Inspect
+m.model_dump()                            # → dict
+m.model_dump_json()                       # → JSON string
+M.model_json_schema()                     # → JSON Schema dict
+
+# Field constraints (in Field(...))
+ge=, le=, gt=, lt=                        # numeric bounds
+min_length=, max_length=                  # for str / list
+pattern=r"..."                            # regex on str
+default=, description=                    # default + help text
+
+# Validators
+@field_validator("name")                  # runs on one field
+@model_validator(mode="after")            # runs after the whole object exists
+
+# Config
+model_config = ConfigDict(
+    strict=True,                          # no string→int coercion
+    extra="forbid",                       # reject unknown keys
+)
+
+# Useful types
+from typing import Literal
+Literal["a", "b", "c"]                    # enum-like; valid in JSON Schema
+Why this matters for your agent code
+Without Pydantic, every LLM-driven function in your codebase ends up with a hand-rolled if/else parser at its entry. With Pydantic, the parser, the schema, and the validator are the same five-line class — and the LLM sees exactly the shape your code expects, because both are reading the same model.
+
+That's the whole pitch. The boundary between text the model produces and typed objects your code uses shrinks to one line:
+
+args = MyToolArgs.model_validate(reply["tool_calls"][0]["arguments"])
+Correct MCP and Schema Usage for Modern LLMs
+Five pieces, in dependency order. Each one earns its keep:
+
+                ┌─────────────────────────────────────────┐
+   agent.py ──→ │ llm_gateway   (port 8099, V1)           │ ──→ 7 free providers
+                └─────────────────────────────────────────┘
+                ┌─────────────────────────────────────────┐
+  agent5.py ──→ │ llm_gatewayV2 (port 8100, V2 — 2026)    │ ──→ 7 free providers
+                └─────────────────────────────────────────┘
+        │
+        ↓ both agents call the SAME tools through
+                ┌─────────────────────────────────────────┐
+                │ mcp_server.py  (FastMCP, stdio)         │
+                └─────────────────────────────────────────┘
+mcp_server.py
+A 15-line MCP server exposing two tools: add(a,b) and subtract(a,b).
+
+Built with FastMCP — @mcp.tool() decorates a Python function and the SDK auto-generates the JSON Schema from the type hints.
+Runs over stdio — the agent spawns it as a subprocess and talks through pipes.
+Both agent.py and agent5.py use this exact server unchanged. Session 5's promise: keep your MCP server, change the loop.
+llm_gateway/— V1, port 8099
+A FastAPI service that fronts 7 free LLM providers (Ollama, Gemini, NVIDIA NIM, Groq, Cerebras, OpenRouter, GitHub Models) behind a single OpenAI-style API.
+
+Auto-failover across providers; per-provider RPM/RPD/TPM tracking; SQLite call log.
+One Python client (from client import LLM); pick a provider with shortcut keys (g, gr, n, c, …) or let it failover.
+What it does NOT do: translate native function-calling APIs. Tool use must be done by prompting JSON and parsing the response yourself.
+Read first: README.md, then client.py.
+.env: Format (same for v2).
+llm_gatewayV2/ — V2, port 8100, the 2026 upgrade
+Same 7 providers, same .env, runs alongside V1 on a different port. Adds the five things Session 5 demands:
+
+Native tool-use — accepts tools=[{name, description, input_schema}], translates per provider, returns canonical tool_calls[]. No prompt-engineered JSON, no regex on the response.
+Prompt caching — cache_system=True flag; Gemini explicit cache, OpenAI-compat implicit prefix.
+Reasoning knob — reasoning="off"|"low"|"medium"|"high"; mapped per provider (Gemini thinking_level, OpenAI-compat reasoning_effort).
+Structured output — response_format={"type":"json_schema","schema":{…}}; validated server-side, returned as a parsed dict.
+Capability-aware routing — failover skips providers that lack the requested capability. New /v1/capabilities endpoint.
+Pydantic v2 on every request/response boundary.
+Read first: README.md, then providers.py and client.py.
+V1 stays untouched. Old code keeps working. New features are opt-in fields.
+
+agent.py — Session 4 style, runs against V1
+A teaching baseline showing how agents worked before native tool-use APIs.
+
+Talks to llm_gateway (V1, port 8099) — the only LLM API available is chat.
+System prompt declares a custom JSON protocol: {"tool":"<name>","args":{…}} or {"final":<num>}.
+Loop: send messages → parse JSON from the model's reply → dispatch to MCP → feed the result back as a user message.
+Includes the things you need to make this work on small free-tier models:
+parse_llm_json() — strips ```json fences, extracts the first {…} block.
+normalize_action() — accepts a few alternative tool-call dialects ({name, arguments}, {tool_calls:[…]}).
+8-turn few-shot scaffold in the message history so the model imitates the format.
+One step per turn, sequential MCP calls.
+Result for [10, 20, 30, 40] → 4 LLM turns, 3 sequential tool calls.
+This is the Session 4 shape. It works. Read it to feel why Session 5 wants to retire it.
+
+agent5.py — Session 5 style, runs against V2
+Same task, same MCP server, rebuilt on V2's primitives.
+
+Talks to llm_gatewayV2 (port 8100).
+Native tool-use: passes MCP tool definitions straight to V2's tools=[…]; reads typed tool_calls[] from the response. No parse_llm_json, no normalize_action, no few-shot. System prompt is two sentences.
+Pydantic on every boundary: ToolDef, TraceEvent, AgentTrace, Verdict. Replaces V1's list[dict] history with a typed event log.
+Parallel dispatch: when the model emits multiple tool_calls in one turn (Gemini and Groq do this on independent ops), dispatch_tool_calls() fans out via asyncio.TaskGroup.
+Cached system prompt: cache_system=True. Gateway translates per provider.
+Reasoning budget: "off" on the executor, "medium" on the verifier.
+Verifier: separate LLM call with response_format={"type":"json_schema","schema":Verdict.model_json_schema(),…}. Returns a validated Verdict Pydantic object — pass/fail/reason.
+Result for [10, 20, 30, 40] (groq) → 3 LLM turns, 3 tool calls (2 in parallel turn-1), ~13 s wall-clock.
+
+Side-by-side, in numbers
+agent.py (Session 4)	agent5.py (Session 5)
+Gateway	V1, port 8099	V2, port 8100
+tool_call_dialect	prompted_fallback	native
+String parsing	parse_llm_json + normalize_action	none
+Few-shot scaffolding	8 turns	none
+Pydantic boundaries	none	ToolDef, AgentTrace, Verdict
+Parallel dispatch	sequential	asyncio.TaskGroup
+cache_system	not available	yes
+Reasoning knob	not available	"off" / "medium"
+Verifier	none	structured-output Verdict
+Wall clock (groq)	~60 s (gemma path)	~13 s
+Agentic Basic Architecture
+Diagram 1: Agent Runtime (ReAct-style)
+
+                                 ┌─────────────────────────────────────────┐
+                                 │             Agent Runtime               │
+                                 │ ┌─────────────────────────┐  ┌────────┐ │
+"I want to book a flight  ───►   │ │ Question: "I want to    │  │ Tools  │ │
+ from Austin to Zurich."         │ │   book a flight..."     │  │┌──────┐│ │
+       :) user                   │ │ Thought: I should       │  ││Flights│ │
+                                 │ │   search for flights... │  │└──────┘│ │
+                                 │ │ Action: Flights Tool    │  │┌──────┐│ │
+                                 │ │ Action Input: Flights   │  ││Search││ │
+                                 │ │   from Austin to Zurich │  │└──────┘│ │
+                                 │ │ Observation: many opts. │  │┌──────┐│ │
+                                 │ │ Thought: present these  │  ││ Code ││ │
+                                 │ │ Final Answer: ...       │  │└──────┘│ │
+                                 │ └─────────────────────────┘  │┌──────┐│ │
+                                 │ ┌─────────────────────────┐  ││ Calc ││ │
+                                 │ │         Model           │  │└──────┘│ │
+                                 │ └─────────────────────────┘  └────────┘ │
+                                 └─────────────────────────────────────────┘
+"Here are some flights that      ◄────
+ might interest you..."
+Or
+
+Diagram 2: RAG-style Agent Flow
+
+   ┌──────────────┐   1    ┌──────────────┐
+   │  User Query  │ ─────► │  Embeddings  │
+   └──────┬───────┘        └──────┬───────┘
+          │                       │ 2
+          │                       ▼
+          │                ┌──────────────┐
+          │  4    ┌────────│   Vector     │
+          ▼       │   3    │   Database   │
+   ┌──────────┐   │        └──────────────┘
+   │  Agent   │◄──┤
+   └────┬─────┘   │
+        │         │  ┌──────────────────┐
+        │ 5       └──│ Retrieved        │
+        ▼            │ Content          │
+   ┌──────────┐      └──────────────────┘
+   │ Response │
+   └──────────┘
+And also
+
+Diagram 3: Sequence flow — User / Client UI / Agent / Model / Google Places API
+
+User           Client side UI       Agent              Model              Google Places API
+ │ "...ski trip..."  │                │                  │                       │
+ │──User query──────►│                │                  │                       │
+ │                   │── Agent sends Prompt+Examples ───►│                       │
+ │                   │                │                  │ Model uses Prompt+   │
+ │                   │                │                  │ Examples to generate │
+ │                   │                │                  │ JSON output          │
+ │                   │                │◄───JSON returned─│                       │
+ │                   │                │ {"function":"display_cities" ...}        │
+ │                   │◄──JSON returned│                  │                       │
+ │  Client Side intercepts JSON       │                  │                       │
+ │  and makes API call to             │── API call ──────────────────────────────►│
+ │  Google Places API                 │                  │                       │
+ │                   │                │◄─Google Places API returns expected fmt──│
+ │                   │◄── Results returned                                       │
+ │ "...here are some │                │                  │                       │
+ │  ski resorts w/   │                │                  │                       │
+ │  images..."       │                │                  │                       │
+ │◄─Agent response── │                │                  │                       │
+How LLMs Simulate Logical Reasoning
+This is probably the biggest insight that you're ever going to get into how LLMs actually work. This is the result of research published a few months ago (27th March 2025). The original article is too complex, but I would still recommend you go ahead and check it out along with these tools. Below, we are also going to talk about things this article didn't cover explicitly.
+
+Diagram: Attribution graph for "What is 36 + 59?" (= 95)
+
+                              ┌─────────────────────────────────────────────┐
+                              │ One path approximates the answer roughly    │
+What is 36 + 59?              │                                             │
+   │                          │   ┌──────────┐                              │
+   ├──►┌────────┐             │   │ 30-70 +  │                              │
+   │   │ 22-38  │─┐           │   │ 30-80    │──►┌──────────┐               │
+   │   └────────┘ │           │   └──────────┘   │ 31-43 +  │  ┌──────────┐ │
+   │   ┌────────┐ │           │                  │ 55-64    │─►│ sum      │ │
+   ├──►│   36   │─┼──►┌──────┐│                  └──────────┘  │ 88-97    │ │
+   │   └────────┘ │   │ add  ││                                └────┬─────┘ │
+   │   ┌────────┐ │   │54-59 ││                                     │       │
+   ├──►│ number │─┘   └──────┘│                                     ▼       │
+   │   │ ending │             │                              ┌──────────┐   │
+   │   │ in 6   │  Early features parse out the              │ sum = 95 │──►│ 95
+   │   └────────┘  structure of the numbers                  └──────────┘   │
+   │                          └─────────────────────────────────────────────┘
+   │   ┌────────┐                          ▲
+   ├──►│ 50-59  │─┐                        │ The two paths combine
+   │   └────────┘ │                        │ at the end to produce
+   │   ┌────────┐ │                        │ the answer
+   ├──►│   59   │─┼──►┌──────────┐         │
+   │   └────────┘ │   │ add      │  ┌──────┴──────┐    ┌──────────┐
+   │   ┌────────┐ │   │ number   │─►│ # ending 6  │───►│ sum ends │
+   └──►│ number │─┘   │ ending 9 │  │ + # ending 9│    │ in 5     │
+       │ ending │     └──────────┘  └─────────────┘    └──────────┘
+       │ in 9   │
+       └────────┘
+       One path determines the last digit of the sum precisely
+So how do LLMs work?
+
+Diagram: Auto-regressive token generation
+
+        ┌───┐         ┌──────┐         ┌───────┐
+        │ a │         │ time │         │ there │.....
+        └─▲─┘         └──▲───┘         └───▲───┘
+          │              │                 │
+        ┌─┴──┐         ┌─┴──┐            ┌─┴──┐
+        │LLM │         │LLM │            │LLM │
+        └─▲──┘         └─▲──┘            └─▲──┘
+          │              │                 │
+   ┌──────┴────┐  ┌──────┴──────┐  ┌───────┴──────────┐
+   │ Once upon │─►│ Once upon a │─►│ Once upon a time │
+   └───────────┘  └─────────────┘  └──────────────────┘
+We know about the auto-regressive (which means that the current value in a sequence depends on its previous values; auto = self, regression = predicting one value from others) nature of LLMs. The image above is for inferencing steps, not for training. In training, we would be predicting each next word again. In inference, we just don't need to because it's already given. Computation-wise, for every word, we need to update our attention and layer weights. Let's break it down:
+
+Once upon → upon a (training) or a (inferencing)
+During inferencing, the last layer, which maps the LLM output to tokens, wasn't processed, as we do not need to know the word upon.
+If we were to visualize the weights and attention maps for this conceptually, it would look like this:
+Diagram: Working memory vs Frozen memory (staircase bar chart)
+
+Once.png
+
+It is very important for us to understand what is happening in the image above. The Frozen memory represents the values of the linear layer outputs and attention values. We are calling them frozen because they are not calculated again and again during inferencing to save computation, and it is expected that these outputs would anyway be the same (assuming the model predicts exactly the same old words every time).
+That leaves us with the "current values," which would be the output of linear layers and attention matrices. Let's call that working memory.
+The combination of Linear layers and attention matrices (and heads) (except the last prediction layer), stores the logic for various concepts like:
+Reasoning & Planning Features:
+"Say Austin" - a direct output predicting logic to say a particular word
+"Bangalore → Karnataka" - Entity relations
+"Answer = capital(state(city))" - A compound reasoning chain.
+Rhyme selection feature - Chooses a rhyme like "butter" before poem generation starts
+Line-planning-before-generation
+Features for planning whole outputs before token 1
+Mathematics & Computation Features
+Adding numbers ending in, say, 6 and 9
+Features for the number, say, 95
+Rounding feature - general rounding logic
+Addition across contexts - adds numbers in math, cooking, and legal arguments
+Medical Diagnosis (or other fields) Features
+Hypothetical diagnosis features
+Follow-up question planner
+Flu Diagnosis Pattern
+Question suggesting flu
+Multilingual Generalization Features
+English-specific translation feature
+Language-independent semantic match feature (works across languages)
+Entity Recognition & Hallucination Control
+"Can't answer" feature - triggers when asked about unknown or uncertain information
+"Familiar entity" detector
+"Unfamiliar entity" hallucination suppressor
+Bug: misfires when uncommon words are parsed incorrectly.
+Chain-of-thought features
+Faithful reasoning step feature
+Hallucinated reasoning step feature
+Reverse-engineered chain-of-thought feature
+Language & Word-Level
+"rhymes with utter"
+"This word starts a poem."
+"switch to poetic mode"
+"This word is a line ending."
+Entity & Knowledge
+"Dallas is in Texas."
+"Austin is the capital of Texas."
+"is a US city"
+"unknown entity"
+Behavior Control
+"Can't answer"
+"refusal phrasing activated" - switches tone to "Sorry, I can't do that" style.
+"output is unsafe" - triggers when response may be problematic
+"assistant persona active" - affects tone, safety rules, and completeness
+"This is an instruction" - used to determine whether to follow or reject
+Reasoning Microsteps
+"X implies Y"
+"Choose answers from alternatives."
+"question had been fully read" - used to delay reasoning until all input is received
+"planning mode active" - kicks in before the first output token
+"feature reused in multiple reasoning chains" - e.g. "capital" being used in multiple related questions
+Utility/Support Features
+"word used earlier in prompt"
+"token is rare" - may trigger hallucination prevention
+"is function word" - like "the", "is", "of"
+"token continues noun phrase"
+"question grammar detected" - used to identify interrogative structure
+Now this list wasn't to bore you, but to explain what these logic snippets are and how to start thinking about them intuitively. This should further strengthen what we discussed in the last session, "Prompt is everything". Models have the logic to do anything; we need to activate that logic.
+
+For the curious minds:
+
+In the first few layers, generic embeddings are converted into their proper meaning. For example, the embedding for pitch in this sentence is the same:
+The coach asked the singer to pitch her voice correctly 
+before stepping onto the pitch to pitch his idea for a new 
+stadium while dodging a fast pitch from the opposing team.
+791, 7395, 4691, 279, 23597, 311, 9846, 1077, 7899,
+12722, 1603, 36567, 8800, 279, 9846, 311, 9846, 81
+3, 4623, 369, 264, 502, 24833, 1418, 32189, 3252, 2
+64, 5043, 9846, 505, 279, 31322, 2128, 13
+Whereas there are 4 different meanings for every use:
+
+adjust vocal tone
+
+sports field
+
+present an idea
+
+thrown ball
+
+In the next layers, these logics are stored, and are activated to figure out, now since we know the actual input, what should we do next
+
+Let's check out this link and explore a little.
+
+Chain-of-Thought (CoT) Prompting
+The Inner Workings of Chain-of-Thought Reasoning
+What is CoT Prompting?
+
+"Chain-of-thought prompting" is (was) a technique used in prompting language models like ChatGPT to improve reasoning and problem-solving by encouraging step-by-step thinking. Instead of asking a question directly and expecting an immediate answer, you guide the model to explain its thorough process - just like how humans solve complex problems by thinking out loud:
+
+Prompt: What is 27 × 46?
+Model answer: 1242
+Prompt: What is 27 × 46? Let's think step by step.
+Model answer:
+
+First, break 46 into 40 + 6.
+
+Multiply 27 × 40 = 1080.
+
+Multiply 27 × 6  = 162.
+
+Add both: 1080 + 162 = 1242.
+CoT:
+
+helps the model reason better, especially for logic, math, or multi-step questions
+makes the output mode interpretable - you can follow the logic
+useful in tasks like math, coding, logic puzzles, ethics, legal reasoning, etc.
+Zero-shot CoT vs. Few-shot CoT
+At first glance, CoT seems like a simple prompting trick. But under the hood, it's activating deeply embedded reasoning patterns in the model.
+
+Zero-shot CoT (e.g. "Let's solve this step by step.") relies on triggering latent reasoning abilities without examples.
+Few-shot CoT, by contrast, gives the model explicit examples of multi-step reasoning. This helps it "pattern match" and reuse known reasoning structures.
+Both are effective - but they operate differently:
+
+Zero-shot CoT nudges the model into reasoning.
+Few-shot CoT gives the model with reasoning templates.
+The magic of "Let's Solve this Step by Step"
+This simple phrase has become iconic in prompting, and for good reason. From the attribution graph research, we now understand that this phrase:
+
+Activates planning features early in the generation process
+Triggers internal representations like:
+Break this into parts
+Delay final answer
+Search for intermediate facts
+It primes the model to route generation through its reasoning circuits instead of directly recalling the answer.
+
+Why CoT works: Activation of Reasoning Patterns
+Attribution graphs reveal that when CoT is used:
+
+Specialized features are activated - like "X implies Y", "Choose the best option" or "Evaluation Step"
+The model recruits multi-hop logic circuits, planning mechanisms, and even reasoning templates it learned during training.
+Critically, these features are often latent - used unless prompted explicitly.
+
+CoT prompts surface these internal tools.
+
+Hence, without CoT:
+
+The model may jump to an answer (pattern match)
+Internal reasoning features stay inactive
+With CoT:
+
+The model internally sequences intermediate steps
+Even before the first output token, it forms a plan
+Let's check Phi4 what it thinks about "A bag contains 3 apples, 5 oranges, and 2 bananas. If you pick one fruit at random, what's the probability it's not an orange?" in one step and multi-step.
+
+Summarizing CoT
+Goal: Improve reasoning by having the model explain its steps before answering.
+
+Core Idea: Instead of jumping to an answer, the model first generated intermediate reasoning steps, like:
+
+To solve this, I need to multiply the number of hours by the rate per hour..."
+
+Used for:
+
+Math word problems
+Logical reasoning
+Any task where step-by-step deduction helps
+Example Prompt:
+
+Q. If there are 5 oranges and you eat 2, how many are left? A: First, you start with 5 oranges. If you eat 2, you subtract 2 from 5. That gives you 3. Answer: 3 oranges.
+
+Updates on CoT: Though not strictly obsolete, CoT is not used any more with SOTA models. Its still super important for SLMs and MLMs. In later sessions we'll see how we update our promots to be careful about this.
+
+ReACT (Reasoning + Acting)
+Goal: Combine reasoning with external actions like tool use or environment interaction.
+
+Core Idea: the model reasons interleaved with actions - e.g., calling a calculator, querying a database, or asking follow-up questions - then continues reasoning.
+
+Used for:
+
+Agentic tasks (e.g., tool use, web search, RAG)
+Interactive environments
+Multi-step planning with feedback
+Structure Example:
+
+Thought: I need to look up the capital of France.
+Action: Search["capital of France"]
+Observation: The capital of France is Paris.
+Thought: Now that I know the capital is Paris, I can answer.
+Answer: Paris
+We see this a lot when we work with Claude or Gemini.
+
+Key Differences
+Feature	CoT	ReACT
+Focus	Pure Reasoning	Reasoning + tool use (acting)
+Output format	Linear step-by-step reasoning	Interleaved steps: Thought, Action, Obs
+Use Case	Internal logic problems	Interactive or tool-based tasks
+Tool use	No	Yes
+Popular Paper	Chain of Thought Prompting (Google 2022)	"ReAct: Synergizing Reasoning and Acting..." (Yao et al., 2022)
+Structured Prompting for Step-by-Step Problem-Solving
+This is the part where prompting goes from art to engineering.
+
+We have already seen how Chain-of-thought prompting activates internal reasoning circuits in LLMs. But when you're solving more structured problems - especially ones that have multiple steps, intermediate decisions, or format-specific outputs - you need to go beyond just "Let's think step by step".
+
+You need structured prompting.
+
+Let's break it down:
+
+Different Structured Prompting Formats
+Structured prompts aren't about being verbose. They're about giving the model a consistent, predictable shape to follow.
+
+1. Input-Output Format Templates
+
+These are prompts that show the model exactly what to expect:
+
+Q: What is 27 + 46?
+A: 27 + 46 = 73
+
+Q: What is 15 × 3?
+A: 15 × 3 = 45
+LLMs love this format because it lets them pattern-match efficiently. Once the model sees two or three examples, it tends to follow the same logic, which leads to few-shot learning in a structured format.
+
+2. Step-Labeled Reasoning (SLR)
+
+This is just CoT - but clean:
+
+Q: What is the capital of the state that contains the city of
+Austin?
+
+Step 1: Identify the state Austin is in.
+→ Austin is in Texas.
+
+Step 2: Find the capital of Texas.
+→ The capital of Texas is Austin.
+
+Answer: Austin.
+Notice how the reasoning steps have explicit structure - this allows us to:
+
+Audit the model's steps
+Add validation between steps
+Catch hallucination early
+3. Function-like Prompts
+
+Structured prompting isn't just for QnA - it works beautifully for instruction-following and utility tasks too:
+
+Task: Summarize the text.
+Input: "LLMs use attention to weigh the relevance of
+tokens..."
+Output: "LLMs prioritize important words using attention."
+This format is easy to scale and useful when wrapping LLMs in tools, agents, or APIs.
+
+Task Decomposition Strategies
+Now let's talk about how you actually break down tasks for structured reasoning.
+
+LLMs don't need everything to be linear - but they do need decision checkpoints.
+
+1. Ask the Right First Question
+
+Don't dive into the final output. Decompose the task into:
+
+What do I need to know first?
+What transformation is needed?
+What format should the result follow?
+Task: Convert the sentence to passive voice.
+Step 1: Identify subject, verb, and object.
+Step 2: Rearrange: object + passive verb + by subject.
+2. Use Checkpoints for Intermediate Validation
+
+Each step should optionally include a validation cue or sanity check.
+
+Step 2: Is this a valid past participle? → Yes.
+Step 3: Does this sound grammatically correct? → Mostly.
+It doesn't have to be perfect - but even a weak validation step dramatically improves model self-correction.
+
+Output parsing and validation
+The output of the LLM isn't always clean. Structured prompting helps - but for critical tasks, you still need post-processing.
+
+1. Parse for Schema
+
+If your prompt says:
+
+Return JSON:
+{
+  "topic": "...",
+  "keywords": [...],
+  "summary": "..."
+}
+The model will usually follow it. But not always.
+
+You should validate that:
+
+All fields exist
+Field types match
+Optional fields are handled gracefully
+2. Add self-validation inside the Prompt
+
+This is a powerful trick. Ask the model to evaluate its own answer:
+
+Answer: Paris
+
+Self-check: Is Paris the capital of France? → Yes
+This doesn't just validate - it also improves confidence in the final output.
+
+Why does structured prompting matter?
+LLMs don't think like humans - they simulate thought. The more structure we give their "thought environment," the more reliable their outputs become.
+
+Think of it as designing a reasoning playground - the rails you build determine how far (and safely) the model can go.
+
+Introduction to AI-based Planning Algorithms
+So far, we've explored how LLMs can reason, explain, and solve complex tasks using Chain-of-thought prompting and structured formats.
+
+Now it's time to go one level higher:
+
+Not just "How do I solve this?" But "How should I plan the solution?"
+
+So what's AI-based Planning? - where we teach LLMs to not just to think, but to plan.
+
+Tree search in Language Model
+In classical AI, tree search is about exploring different paths to reach a goal. You start at the root (initial state) and explore branches (actions/decisions) until you reach a solution (goal state).
+
+But the problem is:
+
+LLMs don't search trees explicitly. They simulate tree-like thinking inside the prompt.
+
+We need to guide it somehow!
+
+How?: Simulate Tree Search
+
+Let's say you prompt:
+
+What are three possible ways to summarize this document?
+The LLM might respond with:
+
+Extractive summary (key sentences)
+Abstractive summary (reword)
+Bullet-points summary
+Each of these is a branch. Now you can prompt:
+
+Try Option 2. Give me an abstractive summary.
+You have just done a tree expansion, LLM-style!
+
+How LLMs Explore Paths
+
+You can simulate Breath-First Search by asking for multiple options first.
+You can simulate Depth-First Search by asking it to fully explore one idea before moving on.
+In tool-using agents, this becomes literal: try tool A, then tool B, and compare results.
+So tree search in LLMs = search through thoughts, actions, or strategies, simulated via prompts.
+
+Goal Decomposition
+Planning starts with understanding the goal. If it's too complex in one go, break it down. This is goal decomposition.
+
+Prompt Patterns for Decomposition
+
+"What steps are needed to solve this?"
+"Break this into subtasks."
+"List the stages of the plan."
+Example:
+
+Goal: Build a website that shows live weather.
+LLM output:
+
+Get the weather data from an API
+Create a web layout
+Display data on the web page
+This is the LLM's internal planner kicking in.
+
+Once you have the planner kicking in.
+
+Once you have the plan, you can solve each subgoal individually.
+
+Planning is Hierarchical
+
+Big goals → Smaller Goals → Solvable tasks.
+
+This is similar to Hierarchical Task Networks (HTNs) in classical planning, and LLMs can simulate this structure naturally with the right response.
+
+Handling Dependencies Between Subgoals
+Not all subtasks are independent. Some steps depend on others being done first.
+
+Example: Booking a trip.
+
+1. Find flights to Tokyo
+2. Choose travel dates
+3. Book hotel
+Here:
+
+Step 3 depends on Step 2
+Step 2 might depend on the availability of Step 1
+The LLM needs to keep state and understand dependencies between steps. This is going to become the single most difficult part for us to handle, and if you excel at solving this problem, you will be able to make the most complex agentic applications, in the easiest way possible!
+
+Prompting for Dependency-Aware Planning
+
+Ask the model to:
+
+Label dependencies:
+Step 3: Book hotel (after Step 2)
+Generate a dependency graph (optional)
+Use output from one step as input to the next
+This is where memory/state management comes into play (we have a session coming up for this).
+
+Putting it all Together
+Let's say you prompt:
+
+Goal: Write a blog post and generate a summary tweet.
+Break this into steps and solve each one.
+The LLM might say:
+
+Plan the blog structure
+Write the blog content
+Generate the tweet based on the blog content
+Not you're guiding a goal → subgoal → dependency-aware → execution flow. This is full-blown planning!
+
+Why This Matters?
+Up until now, we've taught LLMs to reason.
+
+Now we're teaching them to plan entire workflows.
+
+This is the foundation of:
+
+Autonomous agents
+Complex tool use
+Long-form decision-making
+Goal-conditioned reasoning
+LLMs are not completing sentences. They're construction execution plans.
+
+And this is how you'd add consistency checks.
+
+Future (Now) Prompts
+Moving forward, you're always going to use these in your prompts:
+
+Use JSON for Function Calls
+FUNCTION_CALL: calculate|2 + 3
+
+FUNCTION_CALL: {"name": "calculate", "args": {"expression": "2 + 3"}}
+it is easier to parse, extend, and even validate output - especially when using LLM-as-agent territory.
+
+Add Internal Self-Check prompts
+Self-check: Is the result reasonable? → Yes
+This encourages the model to validate its reasoning before calling verify.
+
+Call Out Reasoning Type
+Tag each step with the type of reasoning used: e.g.,
+"Arithmetic", "Logical", "Entity Lookup".
+This only helps us analyze what's going on, but also pushes the model to "meta-reason" - which can reduce errors and hallucinations.
+
+Fallbacks for Errors or Uncertainty If the tool failed or verification doesn't match, consider injecting:
+Assistant: FUNCTION_CALL: fallback_reasoning|[step description]
+This shows how an LLM might "recover" from its own errors - a powerful learning moment.
+
+Explicit Reasoning Prompt Our system_prompt tells the model exactly what to do
+
+Reason step by step
+Use function calls to split reasoning, calculation, and verification
+Follow a predictable format (FUNCTION_CALL or FINAL_ANSWER)
+Separation of Tools The agent accesses:
+
+show_reasoning: for CoT
+calculate: for arithmetic (example)
+verify: for checking correctness
+Conversation Loop with Memory Maintain a conversation_history and incrementally update the prompt, keeping the context fresh. This reinforces the idea that reasoning unfolded over multiple rounds.
+
+Instructional Framing Example
+
+"Respond with EXACTLY ONE line in one of these formats..."
+Models behave so much better when they have a rigid format to follow, especially in multi-step scenarios. It reduces drift and hallucinations and makes the output parable.
+
+The easiest way to check whether your prompt follows these or not would be to use this prompt and then mention your prompt to ChatGPT or Claude, etc.
+
+A good reference to check out.
+

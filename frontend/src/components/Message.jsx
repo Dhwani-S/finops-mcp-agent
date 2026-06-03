@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef, Children, isValidElement } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import rehypeRaw from 'rehype-raw'
 import ToolEvent from './ToolEvent'
 import ReasoningBlock from './ReasoningBlock'
+import PlanView from './PlanView'
 import ChartView, { extractChartData } from './ChartView'
 import ElicitationInput, { ElicitationGroup } from './ElicitationInput'
 import ChatTrace from './ChatTrace'
@@ -387,8 +389,9 @@ function OptionChips({ options, onOptionClick, disabled }) {
 }
 
 export default function Message({ message, onOptionClick, disabled, chartMode }) {
-  const { role, content, events, loading, elicitation, tokenUsage } = message
+  const { role, content, events, loading, elicitation, tokenUsage, plan, isElicitationReply } = message
   const [showChart, setShowChart] = useState(true)
+  const [elicitAnswer, setElicitAnswer] = useState(null)
 
   // Track if this message had content on first mount (i.e. loaded from history)
   const wasCompleteOnMount = useRef(!loading && !!content)
@@ -396,7 +399,15 @@ export default function Message({ message, onOptionClick, disabled, chartMode })
   // Typing effect: only for agent responses arriving live, not history
   const typedContent = useTypingEffect(loading ? '' : content, 12, wasCompleteOnMount.current)
 
+  // Handle elicitation submission: show inline confirmation, then send
+  const handleElicitSubmit = (value) => {
+    setElicitAnswer(value)
+    onOptionClick?.(value)
+  }
+
   if (role === 'user') {
+    // Hide elicitation reply bubbles entirely — shown inline in the agent message instead
+    if (isElicitationReply) return null
     return (
       <div className="message message-user">
         <div className="message-content">{content}</div>
@@ -404,7 +415,10 @@ export default function Message({ message, onOptionClick, disabled, chartMode })
     )
   }
 
-  const { prose, options } = extractOptions(typedContent)
+  const { prose: rawProse, options } = extractOptions(typedContent)
+  // Strip <chart>...</chart> blocks from prose — charts are rendered
+  // separately via extractChartData from tool_result events.
+  const prose = rawProse ? rawProse.replace(/<chart>[\s\S]*?<\/chart>/gi, '').trim() : rawProse
   const chartDataList = extractChartData(events)
   const hasCharts = chartDataList.length > 0 && !loading
 
@@ -415,6 +429,7 @@ export default function Message({ message, onOptionClick, disabled, chartMode })
       {events && events.length > 0 && (
         <ReasoningBlock events={events} loading={loading} />
       )}
+      {plan && <PlanView plan={plan} />}
       {prose && (
         <div className={`message-content ${isTyping ? 'is-typing' : ''}`}>
           {!loading && content && typedContent === content && (
@@ -422,6 +437,7 @@ export default function Message({ message, onOptionClick, disabled, chartMode })
           )}
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
+            rehypePlugins={[rehypeRaw]}
             components={{
               table({ node, children, ...props }) {
                 return <CollapsibleTable {...props}>{children}</CollapsibleTable>
@@ -455,15 +471,21 @@ export default function Message({ message, onOptionClick, disabled, chartMode })
       {options.length > 0 && !elicitation && (
         <OptionChips options={options} onOptionClick={onOptionClick} disabled={disabled} />
       )}
-      {elicitation && (
+      {elicitation && !elicitAnswer && (
         <div className="message-elicit-wrap">
           <div className="message-elicit-kicker">
             <span className="message-elicit-dot" aria-hidden="true" />
             Input needed
           </div>
           {Array.isArray(elicitation)
-            ? <ElicitationGroup configs={elicitation} onSubmit={onOptionClick} disabled={disabled} />
-            : <ElicitationInput config={elicitation} onSubmit={onOptionClick} disabled={disabled} />}
+            ? <ElicitationGroup configs={elicitation} onSubmit={handleElicitSubmit} disabled={disabled} />
+            : <ElicitationInput config={elicitation} onSubmit={handleElicitSubmit} disabled={disabled} />}
+        </div>
+      )}
+      {elicitation && elicitAnswer && (
+        <div className="message-elicit-confirmed">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          <span>{elicitAnswer}</span>
         </div>
       )}
       {hasCharts && (

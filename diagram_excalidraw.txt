@@ -1,0 +1,382 @@
+EXCALIDRAW LAYOUT — AGENTIC IDP PLATFORM
+=========================================
+
+Build this left-to-right, top-to-bottom in Excalidraw.
+Colors use Excalidraw palette names.
+
+
+═══════════════════════════════════════════
+ROW 0: ASYNC EVENT BUS (top of diagram)
+═══════════════════════════════════════════
+
+BOX: Async Event Bus
+  Position: top of diagram, spanning full width
+  Color: light cyan / pale blue fill, dashed border
+  Size: wide horizontal bar
+  Label: "Async Event Bus (Pub/Sub)"
+  Contains:
+    CYLINDER ICON: "Topic"
+      Position: left side inside bar
+  TEXT (right of Topic): "subscribe (task_complete, status_update)"
+
+ARROW: Sub-agents → Event Bus
+  Label: "publish (task_complete, status_update)"
+  Style: dashed, goes upward from sub-agent area to Event Bus
+
+ARROW: Event Bus → Supervisor
+  Label: "subscribe (task_complete, status_update)"
+  Style: solid, downward from Event Bus to Supervisor
+
+ARROW: Supervisor → IDE (via Bridge)
+  Label: "push notification"
+  Style: solid, from Bridge area to IDE
+
+
+═══════════════════════════════════════════
+ROW 1: USER + IDE + BRIDGE + SUPERVISOR
+═══════════════════════════════════════════
+
+BOX: User Icon
+  Position: far left
+  Type: stick figure icon
+  Label: "Developer User"
+
+ARROW: User → IDE
+  Label: "Language Query"
+  Style: solid, black
+
+BOX: IDE
+  Position: left of center
+  Color: white / light gray border
+  Size: medium-large (contains sub-items)
+  Label: "IDE (Host)"
+  Sub-label: "VS Code + Copilot"
+  Contains:
+    SUB-BOX: "MCP Apps (UI rendering)"
+      Color: orange/peach fill
+      Position: bottom-left inside IDE
+    SUB-BOX: "HITL Elicitation"
+      Color: no fill, dashed border
+      Position: bottom-right inside IDE
+      Note: arrow down from IDE to MCP Apps, labeled "Renders iframe"
+    TEXT: "Built-in MCP Client" (small, gray, top-right inside IDE)
+
+ARROW: IDE → Master Agent System
+  Label: "MCP tools/call"
+  Sub-label: "(JSON-RPC / Streamable HTTP)"
+  Style: solid, black
+
+BOX: Master Agent System (PARENT — contains Bridge + Supervisor)
+  Position: center-right
+  Color: light yellow fill (outer border)
+  Size: large (spans Bridge + Supervisor side by side)
+  Label: "Master Agent System" (top, centered)
+  Border: solid, darker yellow
+
+  INSIDE LEFT — SUB-BOX: MCP Bridge
+    Color: light orange fill
+    Size: medium
+    Label: "MCP Bridge"
+    Sub-label: "(mcp_server.py)"
+    Contains (as text list inside):
+      "• ask_master() tool"
+      "• registerAppResource()"
+      "• ctx.elicit() — HITL gates"
+      "• Translates MCP ↔ A2A"
+
+  INTERNAL ARROW: MCP Bridge → Supervisor Agent
+    Label: "A2A message/send"
+    Sub-label: "(JSON-RPC / HTTP)"
+    Style: solid, black (inside the parent box)
+
+  INSIDE RIGHT — SUB-BOX: Supervisor Agent
+    Color: yellow fill (slightly darker than parent)
+    Size: medium-large
+    Label: "Supervisor Agent"
+    Contains:
+      SUB-BOX: "LLM Router + Orchestrator"
+        Color: no fill, inside supervisor
+        Text: "Routes intent using Context Lake + Registry"
+      SUB-BOX: "Judge"
+        Color: white fill, border
+        Position: top-right inside Supervisor
+        Label: "Judge"
+        Sub-label: "Policy Enforcer & Loop Detector"
+      SUB-BOX: "SupervisorGateway"
+        Color: no fill, dashed
+        Position: bottom inside Supervisor
+        Text: "HITL State Machine"
+
+
+═══════════════════════════════════════════
+ROW 1 (RIGHT): CONTEXT LAKE + REGISTRY
+═══════════════════════════════════════════
+
+BOX: Context Lake
+  Position: right of Supervisor (top)
+  Color: light purple / lavender fill
+  Size: medium
+  Label: "Context Lake"
+  Sub-label: "(Vector DB, RAG, Memory)"
+  Contains:
+    "🔓 Public Namespace"
+    "  — Dept wiki, service descriptions"
+    "  — Helps Supervisor route"
+    ""
+    "🔒 Private Namespace"
+    "  — Agent-scoped contexts"
+    "  — Teams control visibility"
+
+ARROW: Supervisor ↔ Context Lake
+  Label: "Semantic search for routing"
+  Style: solid, bidirectional
+
+BOX: Registry
+  Position: right of Supervisor (below Context Lake)
+  Color: light green fill
+  Size: medium
+  Label: "Registry"
+  Sub-label: "(Agents, MCP Servers, Skills, Agent Cards)"
+  Contains:
+    "Dynamic discovery"
+    "Supervisor queries at runtime"
+    "No static config needed"
+
+ARROW: Supervisor ↔ Registry
+  Label: "Agent / skill lookup"
+  Style: solid, bidirectional
+
+
+═══════════════════════════════════════════
+ROW 2: SUB-AGENTS (3 boxes side by side)
+═══════════════════════════════════════════
+
+ARROW: Supervisor → each sub-agent (3 arrows down)
+  Label: "A2A message/send"
+  Style: solid, black
+
+BOX: FinOps Agent
+  Position: left in row 2
+  Color: pink / salmon fill
+  Size: medium-large
+  Label: "FinOps Agent"
+  Contains:
+    SUB-BOX (inner rounded):
+      Color: lighter pink
+      Text line 1: "Gemini 2.5 Pro"
+      Text line 2: "Advanced Tool Use"
+      Text line 3: "Keyword Tool Routing"
+      Text line 4: "Token Caching"
+    ICON/SHAPE to left of agent box:
+      Small flowchart (diamond + rectangles)
+      Label below: "Programmatic Tool Call"
+      Label below: "Tool Use Examples"
+
+BOX: Infra Agent
+  Position: center in row 2
+  Color: light green fill
+  Size: medium
+  Label: "Infra Agent"
+  Contains:
+    SUB-BOX (inner rounded):
+      Color: lighter green
+      Text: "Google ADK"
+
+BOX: DLT Agent
+  Position: right in row 2
+  Color: light blue fill
+  Size: medium
+  Label: "DLT Agent"
+  Contains:
+    SUB-BOX (inner rounded):
+      Color: lighter blue
+      Text: "Advanced Tool Use"
+
+ARROW: Each sub-agent ↔ Context Lake
+  Label: "Namespace access"
+  Style: dashed, gray
+
+
+═══════════════════════════════════════════
+ROW 3: MCP CONNECT (BACKEND MCP SERVERS)
+═══════════════════════════════════════════
+
+Your current diagram has "MCP Connect" — keep that name but
+clarify what it actually is: the backend MCP servers layer.
+
+ARROW: Each sub-agent ↓
+  Label: "MCP tools/call (stdio)"
+  Style: solid, bidirectional (arrows both ways)
+
+BOX: MCP Connect (wide, spanning all 3 agents)
+  Position: below all 3 sub-agents
+  Color: light blue fill
+  Size: wide bar spanning full width
+  Label: "MCP Connect"
+  Sub-label (right side): "Backend MCP Servers per Dept"
+
+  Inside this wide bar, show 3 grouped sections:
+
+  LEFT SECTION (under FinOps):
+    ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐
+    │ BQ MCP   │ │ SQL MCP  │ │Analytics │ │ File MCP │
+    │ Server   │ │ Server   │ │ MCP Srv  │ │ Server   │
+    └──────────┘ └──────────┘ └──────────┘ └──────────┘
+
+  CENTER SECTION (under Infra):
+    ┌──────────────────────┐
+    │ Infra MCP Server     │
+    │ (Terraform, Cloud)   │
+    └──────────────────────┘
+
+  RIGHT SECTION (under DLT):
+    ┌──────────────────────┐
+    │ DLT MCP Server       │
+    │ (Pipeline APIs)      │
+    └──────────────────────┘
+
+  TEXT (right side of MCP Connect bar):
+    "Users Token Storage"
+    "& 3LO management"
+
+
+═══════════════════════════════════════════
+ROW 4: REDIS + BACKEND SYSTEMS
+═══════════════════════════════════════════
+
+ARROW: MCP Connect ↓
+  Label: "Token Caching"
+  Style: solid
+
+BOX: Redis
+  Position: center below MCP Connect
+  Color: light green rounded pill
+  Size: small
+  Label: "Redis"
+
+ARROW: MCP Connect ↓
+  Label: "API Call"
+  Style: solid (separate arrows from each MCP server section)
+
+BOX: Backend Systems (wide bar)
+  Position: bottom
+  Color: light gray fill
+  Label: "Backend Systems"
+  Text: "BigQuery | SQL Server | Cloud APIs | Terraform | DLT Pipelines"
+
+
+═══════════════════════════════════════════
+CALLOUT: MCP APP FLOW (left side)
+═══════════════════════════════════════════
+
+Position: below-left of IDE, dashed border box
+
+BOX (dashed border, no fill):
+  Label: "MCP App Communication (sandboxed)"
+
+  Text inside:
+    "1. Tool has _meta.ui.resourceUri (static metadata)"
+    "2. Host pre-fetches UI from Bridge registerAppResource()"
+    "3. Host renders iframe + pushes tool result"
+    "4. User clicks button → app.callServerTool()"
+    "5. postMessage → VS Code → MCP → Bridge → A2A → Agent"
+    "   (NO direct agent bypass)"
+    "6. Result flows back same path → Host pushes to iframe"
+
+
+═══════════════════════════════════════════
+CALLOUT: HITL FLOW (right side, top)
+═══════════════════════════════════════════
+
+Position: right side near Supervisor (upper), dashed border box
+
+BOX (dashed border, no fill):
+  Label: "HITL Approval Flow"
+
+  Text inside:
+    "1. Sub-agent returns input_required"
+    "2. SupervisorGateway intercepts, saves state"
+    "3. Bubbles up → Bridge → ctx.elicit()"
+    "   → VS Code shows native approve/deny"
+    "4. Decision flows back → Bridge → A2A resume"
+    "   → Sub-agent continues"
+
+
+═══════════════════════════════════════════
+CALLOUT: AUTH GATE FLOW (right side, bottom)
+═══════════════════════════════════════════
+
+Position: right side below HITL callout, dashed border box
+
+BOX (dashed border, no fill):
+  Label: "Auth Gate Flow"
+
+  Text inside:
+    "1. Sub-agent returns auth_required"
+    "2. SupervisorGateway intercepts"
+    "3. Bubbles up → Bridge → 3LO/PKCE flow"
+    "   → IDM Provider issues challenge"
+    "   → VS Code shows OAuth consent"
+    "4. Token returned → Bridge → A2A resume"
+    "   → Sub-agent retries with token"
+
+
+═══════════════════════════════════════════
+CALLOUT: SECURITY (bottom-left)
+═══════════════════════════════════════════
+
+BOX (light yellow fill, rounded):
+  Label: "Security Principles"
+
+  Text:
+    "1. Sandboxed iframe (MCP App isolation)"
+    "2. postMessage channel (all App ↔ Host comms)"
+    "3. No Privilege Escalation"
+    "4. MCP Elicitation for auth (not OOB)"
+    "5. SQL guardrails + bytes-billed caps"
+    "6. Namespace ACL on Context Lake"
+    "* 3LO/PKCE on separate MCP extensions"
+
+
+═══════════════════════════════════════════
+ARROW LABEL CHEAT SHEET
+═══════════════════════════════════════════
+
+  User → IDE                    : "Language Query"
+  IDE → Bridge                  : "MCP tools/call (JSON-RPC/HTTP)"
+  Bridge → Supervisor           : "A2A message/send (JSON-RPC/HTTP)"
+  Supervisor ↔ Context Lake     : "Semantic search"
+  Supervisor ↔ Registry         : "Agent / skill lookup"
+  Supervisor → Sub-agents       : "A2A message/send"
+  Sub-agents ↔ Context Lake     : "Namespace access" (dashed)
+  Sub-agents ↔ MCP Connect      : "MCP tools/call (stdio)"
+  MCP Connect → Redis           : "Token Caching"
+  MCP Connect → Backend Systems : "API Call"
+  MCP App → IDE (Host)          : "postMessage (sandboxed)"
+  IDE → Bridge (from App)       : "MCP tools/call (forwarded)"
+  Bridge ↔ IDM                  : "MCP Elicitation / 3LO+PKCE"
+  Sub-agents → Event Bus        : "publish (task_complete, status_update)"
+  Event Bus → Supervisor        : "subscribe (task_complete, status_update)"
+  Supervisor → IDE (via Bridge) : "push notification"
+
+
+═══════════════════════════════════════════
+COLOR LEGEND
+═══════════════════════════════════════════
+
+  IDE / Host         : white / light gray border
+  Master Agent System : light yellow fill (outer border)
+  MCP Bridge         : light orange fill (inside Master Agent)
+  MCP Apps           : orange / peach fill (inside IDE)
+  Supervisor Agent   : yellow fill (inside Master Agent)
+  Judge              : white fill inside Supervisor
+  FinOps Agent       : pink / salmon fill
+  Infra Agent        : light green fill
+  DLT Agent          : light blue fill
+  Context Lake       : lavender / light purple fill
+  Registry           : light green fill
+  MCP Connect bar    : light blue fill
+  Backend Systems    : light gray fill
+  Redis              : light green pill
+  Callout boxes      : dashed border, no fill
+  Security box       : light yellow fill

@@ -1,0 +1,177 @@
+╔══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+║                     SPEC-COMPLIANT MCP APPS ARCHITECTURE FOR AGENTIC IDP PLATFORM                                                                        ║
+║                     Corrected Flow & Sandboxed Communication                                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+
+
+                                                                                          ┌─────────────────────────────────────────────────────────────────────────────────────┐
+                                                                                          │                CUSTOM IDP AGENTIC PLATFORM (Concept Pointers, Custom A2A)         │
+    👤 Developer                                                                          │                                                                                   │
+       User                                                                               │   ┌────────────────────┐     ┌────────────────────┐     ┌────────────────────┐    │
+        │                                                                                 │   │   Context Lake     │     │   Registry          │     │                    │    │
+        │ 1. "Deploy DLT resource" (NL)                                                   │   │   (Vector DB, RAG, │     │   (Agents, MCP      │     │   Redis (Cache)    │    │
+        ▼                                                                                 │   │    Memory)         │     │    Servers, Skills,  │     │                    │    │
+ ┌─────────────────────────────────────┐      ┌──────────────────────────────┐            │   │                    │     │    Agent Cards)      │     └────────────────────┘    │
+ │          VS Code (Host)             │      │     MCP Bridge Server       │            │   │  🔓 Public NS      │     │                    │     ┌────────────────────┐    │
+ │  ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄  │      │     (mcp_server.py)        │            │   │   (helps Supervisor│     │  Dynamic discovery │     │  Identity System   │    │
+ │  All components below are          │      │  ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄  │            │   │    route requests) │     │  on-the-go lookup  │     │  (IDM) & Auth      │    │
+ │  BUILT INTO VS Code.               │      │                              │            │   │                    │     │                    │     │  Provider          │    │
+ │  Devs configure, not build.        │      │  ┌────────────────────────┐  │            │   │  🔒 Private NS     │     └─────────┬──────────┘     │  ──────────────    │    │
+ │                                     │      │  │  ask_master() tool    │  │            │   │   (agent-scoped,   │               │                │  3LO: Auth Code    │    │
+ │  ┌───────────────────────────────┐  │      │  │  ─ receives MCP       │  │            │   │    team controls   │               │                │  + PKCE            │    │
+ │  │  Copilot Chat (built-in LLM) │  │      │  │    tools/call from    │  │            │   │    visibility)     │               │                │                    │    │
+ │  │  ─ Processes NL queries      │  │      │  │    VS Code            │  │            │   └──────────┬─────────┘               │                └─────────┬──────────┘    │
+ │  │  ─ Decides which MCP tools   │  │      │  │  ─ translates to A2A  │  │            │              │                         │                          │               │
+ │  │    to call                   │  │      │  │    message/send       │  │            │              │  Semantic search         │  Agent/Skill lookup      │  Auth         │
+ │  │  ─ Sees _meta.ui.resourceUri │  │      │  │    internally         │  │            │              ▼                         ▼                          ▼               │
+ │  │    on tool metadata          │  │      │  └────────────────────────┘  │            │   ┌═══════════════════════════════════════════════════════════════════════════┐    │
+ │  └──────────────┬────────────────┘  │      │                              │            │   ║                     Supervisor Agent                                    ║    │
+ │                 │                   │      │  ┌────────────────────────┐  │            │   ║   ┌────────────────────────────────────────────────────────────────┐    ║    │
+ │  2. MCP tools/call                  │      │  │  elicitation()        │  │            │   ║   │  LLM Router + Orchestrator                                   │    ║    │
+ │     (JSON-RPC over                  │      │  │  ─ translates A2A     │  │            │   ║   │  ─ Routes user intent to correct sub-agent                   │    ║    │
+ │      Streamable HTTP)               │      │  │    input_required     │  │            │   ║   │  ─ Uses Context Lake (semantic search) for routing hints     │    ║    │
+ │                 │                   │      │  │    into VS Code's     │  │            │   ║   │  ─ Uses Registry for agent/skill discovery                   │    ║    │
+ │                 ▼                   │      │  │    ctx.elicit()       │  │   3. A2A   │   ║   │  ─ Manages multi-step workflows across agents                │    ║    │
+ │  ┌──────────────────────────────┐   │      │  │    (native dialog)    │  │  message/  │   ║   └────────────────────────────────────────────────────────────────┘    ║    │
+ │  │  Built-in MCP Client        │───┼──────▶│  └────────────────────────┘  │──send────▶│   ║                                                                        ║    │
+ │  │  ─ Connects to servers in   │◀──┼──────┤│                              │  (JSON-RPC│   ║   ┌────────────────────────────────────────────────────────────────┐    ║    │
+ │  │    .vscode/mcp.json         │   │ MCP  ││  ┌────────────────────────┐  │  / HTTP)  │   ║   │  Judge                                                       │    ║    │
+ │  │  ─ Sends tools/call,        │   │result││  │  registerAppResource() │  │           │   ║   │  ─ Loop detection (agent calling itself)                     │    ║    │
+ │  │    tools/list, resources/    │   │      ││  │  ─ serves bundled     │  │           │   ║   │  ─ Quality verification of responses                         │    ║    │
+ │  │    read                      │   │      ││  │    HTML for MCP Apps  │  │◀──────────│   ║   │  ─ Cross-verifies response matches original intent            │    ║    │
+ │  │  ─ Forwards app.callServer  │   │      ││  │  ─ referenced via     │  │  A2A      │   ║   │  ─ Terminates circular routing                               │    ║    │
+ │  │    Tool() from iframe       │   │      ││  │    _meta.ui on tool   │  │  result   │   ║   └────────────────────────────────────────────────────────────────┘    ║    │
+ │  └──────────────────────────────┘   │      │  │    metadata (static)  │  │           │   ║                                                                        ║    │
+ │                                     │      │  └────────────────────────┘  │           │   ║   ┌────────────────────────────────────────────────────────────────┐    ║    │
+ │  ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄  │      │                              │           │   ║   │  SupervisorGateway (HITL State Machine)                      │    ║    │
+ │  2b. Host pre-fetches UI            │      │  HITL APPROVAL FLOW:         │           │   ║   │  ─ Intercepts input_required from sub-agents                 │    ║    │
+ │      resource from Bridge's         │      │  ┌────────────────────────┐  │           │   ║   │  ─ Saves HITL state, bubbles approval request to Bridge      │    ║    │
+ │      registerAppResource()          │      │  │  Sub-agent returns     │  │           │   ║   │  ─ On user approve: resumes sub-agent via A2A                │    ║    │
+ │      (tool has _meta.ui.            │      │  │  input_required ──────▶│──┼──elicit──▶│   ║   │  ─ On user deny: cancels and returns error                   │    ║    │
+ │       resourceUri)                  │      │  │  Bridge translates to  │  │  VS Code  │   ║   └────────────────────────────────────────────────────────────────┘    ║    │
+ │                 │                   │      │  │  ctx.elicit() ────────▶│──┼──shows───▶│   ╚═══════════════════════════════════════╤════════════════════════════════╝    │
+ │                 ▼                   │      │  │  User approves/denies │  │  native   │                                           │                                    │
+ │  5. Host renders App                │      │  │  Bridge sends A2A    ◀│──┼──dialog   │                                           │ 4. A2A message/send                │
+ │     iframe + pushes                 │      │  │  resume to sub-agent  │  │           │                                           │    to sub-agent                     │
+ │     tool result                     │      │  └────────────────────────┘  │           │                                           │    (JSON-RPC / HTTP)                │
+ │                 │                   │      └──────────────────────────────┘            │                                           ▼                                    │
+ │                 ▼                   │                                                  │   ┌═══════════════════════════════════════════════════════════════════════════┐    │
+ │  ┌─────────────────────────────┐    │                                                  │   ║                     DLT Agent (Sub-agent)                               ║    │
+ │  │  ╔═══════════════════════╗  │    │                                                  │   ║                                                                         ║    │
+ │  │  ║  Rendered MCP App     ║  │    │                                                  │   ║   ┌──────────────────────────────┐   ┌──────────────────────────────┐   ║    │
+ │  │  ║  (Form UI)            ║  │    │                                                  │   ║   │  Agent LLM                   │   │  Own Context Namespace       │   ║    │
+ │  │  ║  ┌─────────────────┐  ║  │    │                                                  │   ║   │  (Gemini / Azure OpenAI)     │   │  (stored in Context Lake     │   ║    │
+ │  │  ║  │ ┌──────────────┐│  ║  │    │                                                  │   ║   │                              │   │   private namespace)         │   ║    │
+ │  │  ║  │ │ Deploy DLT   ││  ║  │    │                                                  │   ║   │  Processes routed query,     │   │                              │   ║    │
+ │  │  ║  │ │ Resource     ││  ║  │    │                                                  │   ║   │  calls backend MCP tools,    │   │  Team controls visibility:   │   ║    │
+ │  │  ║  │ ├──────────────┤│  ║  │    │                                                  │   ║   │  returns structured result   │   │  public data helps routing,  │   ║    │
+ │  │  ║  │ │ Name: [____] ││  ║  │    │                                                  │   ║   └──────────────┬───────────────┘   │  private stays scoped        │   ║    │
+ │  │  ║  │ │ Region:[___] ││  ║  │    │                                                  │   ║                  │                   └──────────────────────────────┘   ║    │
+ │  │  ║  │ │ Type:  [___] ││  ║  │    │                                                  │   ║                  │                                                      ║    │
+ │  │  ║  │ ├──────────────┤│  ║  │    │                                                  │   ║   ┌──────────────▼───────────────────────────────────────────────────┐   ║    │
+ │  │  ║  │ │ [▶ Deploy]   ││  ║  │    │                                                  │   ║   │  Advanced MCP Patterns (Context Optimization)                  │   ║    │
+ │  │  ║  │ └──────────────┘│  ║  │    │                                                  │   ║   │                                                                 │   ║    │
+ │  │  ║  └─────────────────┘  ║  │    │                                                  │   ║   │  • Tool Search Tool ─ discovers relevant tools from 100s       │   ║    │
+ │  │  ║                       ║  │    │                                                  │   ║   │    without loading all into context                             │   ║    │
+ │  │  ║  Uses App SDK:        ║  │    │                                                  │   ║   │  • Programmatic Tool Calling ─ invokes tools in code exec env  │   ║    │
+ │  │  ║  • app.connect()      ║  │    │                                                  │   ║   │    reducing context window impact                              │   ║    │
+ │  │  ║  • app.ontoolresult   ║  │    │                                                  │   ║   │  • Tool Use Examples ─ standard demos for effective chaining   │   ║    │
+ │  │  ║  • app.callServerTool ║  │    │                                                  │   ║   │  • Token Caching ─ static tool sets enable cross-turn cache    │   ║    │
+ │  │  ╚═══════════════════════╝  │    │                                                  │   ║   │    (conflicts with Tool Search ─ use one or the other)         │   ║    │
+ │  │           │                 │    │                                                  │   ║   │  • Keyword Tool Routing ─ pre-filters tools by query keywords  │   ║    │
+ │  │           │                 │    │                                                  │   ║   │    (reduces context 60-80% per turn)                           │   ║    │
+ │  │  6. User interacts         │    │                                                  │   ║   └──────────────────────────────────────────────────────────────────┘   ║    │
+ │  │     with form               │    │                                                  │   ║                  │                                                      ║    │
+ │  │           │                 │    │                                                  │   ╚══════════════════╪══════════════════════════════════════════════════════╝    │
+ │  │           ▼                 │    │                                                  │                      │                                                        │
+ │  │  7. app.callServerTool(…)  │    │                                                  │                      │ 5. MCP tools/call (stdio)                              │
+ │  │     via secure postMessage │    │                                                  │                      │                                                        │
+ │  │           │                 │    │                                                  │                      ▼                                                        │
+ │  │           ▼                 │    │                                                  │   ┌═══════════════════════════════════════════════════════════════════════┐    │
+ │  │  8. VS Code (Host)         │    │                                                  │   ║              DLT Backend MCP Server                                  ║    │
+ │  │     forwards as MCP        │    │                                                  │   ║   ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────────┐   ║    │
+ │  │     tools/call ────────────┼────┼── MCP tools/call ──▶ Bridge ──▶ A2A ──▶ Agent    │   ║   │  BigQuery MCP   │ │  SQL Server MCP │ │  Analytics MCP      │   ║    │
+ │  │                            │    │                                                  │   ║   │  Server         │ │  Server         │ │  Server             │   ║    │
+ │  │  9. Host pushes fresh      │    │                                                  │   ║   │  ─ run_bq_query │ │  ─ run_sql_query│ │  ─ detect_anomalies │   ║    │
+ │  │     data to App ◀──────────┼────┼── MCP result ◀── Bridge ◀── A2A ◀── Agent       │   ║   │  ─ dry_run_bq   │ │  ─ get_schema   │ │  ─ forecast         │   ║    │
+ │  │                            │    │                                                  │   ║   │  ─ list_dims    │ │  ─ list_dims    │ │  ─ calc_growth      │   ║    │
+ │  └─────────────────────────────┘    │                                                  │   ║   │  + 9 resources  │ │                 │ │  ─ score_recs       │   ║    │
+ │                                     │                                                  │   ║   └────────┬────────┘ └────────┬────────┘ │  ─ summarize_data   │   ║    │
+ │  ┌─────────────────────────────┐    │                                                  │   ║            │                   │          └──────────┬──────────┘   ║    │
+ │  │  10. Task Status /          │    │                                                  │   ║            │                   │                     │              ║    │
+ │  │      Final Confirmation     │    │                                                  │   ║   ┌────────┴───────────────────┴─────────────────────┘              ║    │
+ │  │      (result notification   │    │                                                  │   ║   │  ┌─────────────────────┐                                       ║    │
+ │  │       displayed in chat)    │◀───┼── MCP result ◀── Bridge ◀── A2A ◀── Supervisor  │   ║   │  │  File MCP Server    │                                       ║    │
+ │  └─────────────────────────────┘    │                                                  │   ║   │  │  ─ write_file       │                                       ║    │
+ │                                     │                                                  │   ║   │  │  ─ export_csv       │     6. API Calls                      ║    │
+ └─────────────────────────────────────┘                                                  │   ║   │  │  ─ read_file        │         │                              ║    │
+                                                                                          │   ║   │  │  ─ list_files       │         ▼                              ║    │
+                                                                                          │   ║   │  └─────────────────────┘                                       ║    │
+ ┌────────────────────────────────────────────────┐                                       │   ║   │                          ┌──────────────────────────────┐       ║    │
+ │  USER INTERACTION (HITL)                       │                                       │   ║   │                          │  DLT Backend Systems         │       ║    │
+ │  ─────────────────────────                     │                                       │   ║   │                          │  (APIs, Databases,           │       ║    │
+ │  1. Human-In-The-Loop (HITL) for critical      │                                       │   ║   │                          │   Infrastructure)            │       ║    │
+ │     actions (Host-controlled logic).           │                                       │   ║   │                          └──────────────────────────────┘       ║    │
+ │  2. Sandboxed iframes via secure postMessage   │                                       │   ║   │                                                                 ║    │
+ │     channel (Isolation, prevents bypass).      │                                       │   ╚═══╧═════════════════════════════════════════════════════════════════╝    │
+ │  3. MCP Elicitation for auth approval gates    │                                       │                                                                              │
+ │     (ctx.elicit — NOT "out-of-band").          │                                       └──────────────────────────────────────────────────────────────────────────────┘
+ └────────────────────────────────────────────────┘
+
+
+ ┌══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+ ║  PLATFORM INFRASTRUCTURE                                                                                                              ║
+ ║                                                                                                                                        ║
+ ║  ┌────────────────────┐  ┌────────────────────┐  ┌────────────────────┐  ┌────────────────────┐  ┌────────────────────────────────────┐ ║
+ ║  │  Context Lake      │  │  Registry           │  │  Pubsub / Kafka   │  │  Redis (Cache)     │  │  Identity System (IDM)             │ ║
+ ║  │  (Vector DB,       │  │  (Agents, MCP       │  │                    │  │                    │  │  & Auth Provider                   │ ║
+ ║  │   RAG, Memory)     │  │   Servers, Skills)  │  │                    │  │                    │  │  ──────────────────────────        │ ║
+ ║  │                    │  │                    │  │                    │  │                    │  │  3LO: Auth Code + PKCE             │ ║
+ ║  │  🔓 Public NS:     │  │  Dynamic agent     │  │  Event streaming  │  │  Session state,    │  │  MCP Elicitation for approval      │ ║
+ ║  │   routing hints    │  │  discovery for     │  │  Async notifs     │  │  query caching     │  │  No Privilege Escalation            │ ║
+ ║  │  🔒 Private NS:    │  │  Supervisor        │  │                    │  │                    │  │  User consent before               │ ║
+ ║  │   agent-scoped     │  │                    │  │                    │  │                    │  │  non-idempotent actions             │ ║
+ ║  └────────────────────┘  └────────────────────┘  └────────────────────┘  └────────────────────┘  └────────────────────────────────────┘ ║
+ ╚══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+
+
+ ┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+ │  SECURITY PRINCIPLES                                                                                        │
+ │  ───────────────────                                                                                        │
+ │  1. Sandboxed iframe (isolation for MCP App — no parent DOM, cookie, or storage access)                     │
+ │  2. postMessage channel (ALL App ↔ Host communication — no direct agent bypass)                             │
+ │  3. No Privilege Escalation (Host controls which tools/capabilities each App can access)                    │
+ │  4. MCP Elicitation for auth gates (ctx.elicit — spec-compliant, NOT "out-of-band")                        │
+ │  5. SQL guardrails (blocked DML/DDL keywords), bytes-billed caps, result truncation                        │
+ │  6. Namespace-based access control on Context Lake (teams control public vs private visibility)             │
+ │  *  3LO/PKCE and other auth concerns are layered on separate MCP extensions                                │
+ └──────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+
+ ┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+ │  PROTOCOL MAP (arrow labels for Excalidraw)                                                                 │
+ │  ──────────────────────────────────────────                                                                 │
+ │                                                                                                              │
+ │  User ────── NL ──────────────────────────────────────▶ VS Code (Copilot Chat)                              │
+ │  VS Code ─── MCP tools/call (JSON-RPC/HTTP) ─────────▶ MCP Bridge Server (mcp_server.py)                   │
+ │  Bridge ──── A2A message/send (JSON-RPC/HTTP) ───────▶ Supervisor Agent                                    │
+ │  Supervisor ─ A2A message/send ──────────────────────▶ Sub-agent (DLT, Infra, FinOps, etc.)                │
+ │  Sub-agent ── MCP tools/call (stdio) ────────────────▶ Backend MCP Server (BQ, SQL, Analytics, File)       │
+ │  Backend MCP ─ API Call ─────────────────────────────▶ Backend Systems (BigQuery, SQL Server, APIs)         │
+ │  MCP App ──── postMessage ───▶ VS Code ── MCP ──────▶ Bridge ── A2A ──▶ Agent   (NO direct bypass)        │
+ │  Bridge ──── MCP Elicitation (ctx.elicit) ───────────▶ VS Code ──▶ User approve/deny dialog                │
+ │  Bridge ──── A2A resume msg ─────────────────────────▶ Supervisor ──▶ Sub-agent (continue after approval)  │
+ │                                                                                                              │
+ └──────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+
+ ┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+ │  LEGEND                                                                                                     │
+ │  ──────                                                                                                     │
+ │  ┌─────────┐  VS Code / Host components (built-in, devs don't build)                                       │
+ │  ┌─────────┐  MCP Bridge (protocol translator — MCP ↔ A2A)                                                 │
+ │  ╔═════════╗  Agents (Supervisor, Sub-agents)                                                               │
+ │  ╔═════════╗  MCP App (sandboxed iframe, rendered Form UI)                                                  │
+ │  ╔═════════╗  Backend MCP Servers (per-department tools)                                                    │
+ │  ══════════   Platform boundary                                                                             │
+ └──────────────────────────────────────────────────────────────────────────────────────────────────────────────┘

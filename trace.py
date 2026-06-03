@@ -19,6 +19,7 @@ class ToolCallTrace(BaseModel):
     args: dict = Field(default_factory=dict)
     result_chars: int = 0
     truncated: bool = False
+    artifact_id: str | None = None
     error: str | None = None
     duration_ms: float = 0.0
 

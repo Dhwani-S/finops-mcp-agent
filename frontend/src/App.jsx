@@ -113,6 +113,9 @@ function App() {
         case 'thinking':
           msg.events = [...msg.events, { type: 'thinking', message: data.message }]
           break
+        case 'plan':
+          msg.plan = data
+          break
         case 'tool_call':
           msg.events = [...msg.events,
             { type: 'tool_call', tool: data.tool, server: data.server, args: data.args }]
@@ -168,7 +171,7 @@ function App() {
     if (activeScopeId === id) handleScopeSelect(null)
   }
 
-  const handleSend = async (text) => {
+  const handleSend = async (text, { isElicitationReply = false } = {}) => {
     if (!text.trim() || isLoading) return
 
     // Build message with scope context
@@ -176,7 +179,7 @@ function App() {
     const scopeCtx = scopeToContext(activeScope)
     const messageForApi = scopeCtx ? `${scopeCtx}\n\n${text}` : text
 
-    const userMsg = { role: 'user', content: text }
+    const userMsg = { role: 'user', content: text, isElicitationReply }
     const agentMsg = { role: 'agent', content: '', events: [], loading: true }
     updateActiveMessages((prev) => [...prev, userMsg, agentMsg])
     setIsLoading(true)
@@ -361,6 +364,7 @@ function App() {
               key={activeSessionId}
               messages={messages}
               onSuggestion={handleSend}
+              onElicitationReply={(text) => handleSend(text, { isElicitationReply: true })}
               suggestionsDisabled={isLoading}
               chartMode={outputPrefs.charts}
             />

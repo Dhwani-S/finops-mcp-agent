@@ -12,6 +12,78 @@
       "source": "industry_benchmark_2025",
       "notes": "GCP SUDs (sustained use discounts) make GCP cheapest for steady VMs. AWS has best spot market depth."
     },
+    "compute_vm_general_purpose": {
+      "description": "General-purpose VMs: Azure D/Ds/Dv-series ↔ AWS m-series ↔ GCP n2-standard/c3-standard",
+      "aws_to_azure": 0.92,
+      "aws_to_gcp": 0.85,
+      "azure_to_aws": 1.09,
+      "azure_to_gcp": 0.88,
+      "gcp_to_aws": 1.18,
+      "gcp_to_azure": 1.14,
+      "source": "industry_benchmark_2026_family",
+      "azure_families": ["Dv2", "Dv3", "Dv4", "Dv5", "DSv2", "DSv3", "Dsv4", "Dsv5", "Dasv4", "Dasv5", "Ddsv4", "Ddsv5", "Dav4", "Dav5"],
+      "notes": "General-purpose workloads. Azure D-series maps to AWS m5/m6i/m7i. AWS typically 5-10% cheaper on-demand."
+    },
+    "compute_vm_compute_optimized": {
+      "description": "Compute-optimized VMs: Azure F/Fs-series ↔ AWS c-series ↔ GCP c3-highcpu/c2",
+      "aws_to_azure": 0.88,
+      "aws_to_gcp": 0.82,
+      "azure_to_aws": 1.14,
+      "azure_to_gcp": 0.90,
+      "gcp_to_aws": 1.22,
+      "gcp_to_azure": 1.11,
+      "source": "industry_benchmark_2026_family",
+      "azure_families": ["Fv2", "FSv2", "Fsv2", "FXmdsv2"],
+      "notes": "Compute-heavy workloads. AWS c-series has strongest price/performance. Azure F-series ~14% more expensive on-demand."
+    },
+    "compute_vm_memory_optimized": {
+      "description": "Memory-optimized VMs: Azure E/Es-series ↔ AWS r-series ↔ GCP n2-highmem/c3-highmem",
+      "aws_to_azure": 0.90,
+      "aws_to_gcp": 0.83,
+      "azure_to_aws": 1.11,
+      "azure_to_gcp": 0.88,
+      "gcp_to_aws": 1.20,
+      "gcp_to_azure": 1.14,
+      "source": "industry_benchmark_2026_family",
+      "azure_families": ["Ev3", "Ev4", "Ev5", "Esv3", "Esv4", "Esv5", "Edsv4", "Edsv5", "Easv4", "Easv5", "Eav4", "Eav5"],
+      "notes": "Memory-intensive workloads (databases, caches). AWS r-series ~11% cheaper than Azure E-series on-demand."
+    },
+    "compute_vm_storage_optimized": {
+      "description": "Storage-optimized VMs: Azure L-series ↔ AWS i/d-series ↔ GCP n2-standard (local SSD)",
+      "aws_to_azure": 0.93,
+      "aws_to_gcp": 0.88,
+      "azure_to_aws": 1.08,
+      "azure_to_gcp": 0.92,
+      "gcp_to_aws": 1.14,
+      "gcp_to_azure": 1.09,
+      "source": "industry_benchmark_2026_family",
+      "azure_families": ["Lsv2", "Lsv3", "Lasv3"],
+      "notes": "Storage-heavy workloads (big data, NoSQL). Local NVMe performance and pricing vary significantly."
+    },
+    "compute_vm_gpu": {
+      "description": "GPU VMs: Azure N-series ↔ AWS p/g-series ↔ GCP a2/g2",
+      "aws_to_azure": 0.88,
+      "aws_to_gcp": 0.85,
+      "azure_to_aws": 1.14,
+      "azure_to_gcp": 0.92,
+      "gcp_to_aws": 1.18,
+      "gcp_to_azure": 1.09,
+      "source": "industry_benchmark_2026_family",
+      "azure_families": ["NCv3", "NCasT4v3", "NVv3", "NVadsA10v5", "NDv2", "NDs"],
+      "notes": "GPU pricing depends heavily on GPU model (A100 vs T4 vs V100). AWS has widest GPU instance selection."
+    },
+    "compute_vm_burstable": {
+      "description": "Burstable VMs: Azure B-series ↔ AWS t-series ↔ GCP e2/f1-micro",
+      "aws_to_azure": 0.95,
+      "aws_to_gcp": 0.80,
+      "azure_to_aws": 1.05,
+      "azure_to_gcp": 0.82,
+      "gcp_to_aws": 1.25,
+      "gcp_to_azure": 1.22,
+      "source": "industry_benchmark_2026_family",
+      "azure_families": ["Bv1", "Bv2", "BS", "Bsv2"],
+      "notes": "Burstable instances for dev/test and low-utilization workloads. GCP e2 shared-core is cheapest for light workloads."
+    },
     "compute_serverless": {
       "description": "Serverless functions (Lambda/Functions/Cloud Functions)",
       "aws_to_azure": 0.90,

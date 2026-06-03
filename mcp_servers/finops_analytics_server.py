@@ -58,6 +58,19 @@ def _load_resource_file(relative_path: str) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def _extract_rows_from_dict(d: dict) -> list[dict] | None:
+    """Extract row data from a dict (e.g. summarize_data or run_multi_cloud_query output)."""
+    # Known keys that contain row arrays
+    for key in ("top_results", "top_5", "data", "rows", "results"):
+        if key in d and isinstance(d[key], list) and d[key]:
+            return d[key]
+    # Fallback: find the first non-empty list of dicts
+    for v in d.values():
+        if isinstance(v, list) and v and isinstance(v[0], dict):
+            return v
+    return None
+
+
 def _parse_data(data_json: str) -> list[dict] | None:
     """Parse JSON string into list of dicts with basic JSON repair.
     
@@ -66,13 +79,19 @@ def _parse_data(data_json: str) -> list[dict] | None:
     before giving up.
     """
     if not isinstance(data_json, str):
-        return data_json if isinstance(data_json, list) else None
+        if isinstance(data_json, list):
+            return data_json
+        if isinstance(data_json, dict):
+            return _extract_rows_from_dict(data_json)
+        return None
 
     # First try: direct parse
     try:
         data = json.loads(data_json)
         if isinstance(data, list):
             return data
+        if isinstance(data, dict):
+            return _extract_rows_from_dict(data)
         return None
     except (json.JSONDecodeError, TypeError):
         pass
@@ -89,6 +108,8 @@ def _parse_data(data_json: str) -> list[dict] | None:
         data = json.loads(repaired)
         if isinstance(data, list):
             return data
+        if isinstance(data, dict):
+            return _extract_rows_from_dict(data)
         return None
     except (json.JSONDecodeError, TypeError):
         return None
@@ -474,34 +495,43 @@ def calculate_growth(
 
 @mcp.tool()
 def summarize_data(
-    data_json: str = Field(description="JSON array of objects (pass raw tool output from run_bq_query / run_sql_query)"),
+    data_json: str = Field(default="", description="JSON array of objects (pass raw tool output from run_query). Leave empty when using artifact_id."),
+    artifact_id: str = Field(default="", description='Artifact handle (e.g. "art:abc123") from a previous large query result. When provided, loads full data from the artifact store instead of data_json.'),
     group_by: str = Field(default="", description='Optional column name to group by (e.g. "service_description", "project_name")'),
     value_column: str = Field(default="", description="Column to aggregate. Auto-detected if empty."),
 ) -> str:
     """Summarize a large result set into aggregate statistics.
 
     Use this INSTEAD of letting the LLM scan hundreds of rows manually.
-    Call after run_bq_query or run_sql_query to extract key numbers before
-    putting results into the conversation.
+    Call after run_query to extract key numbers before putting results
+    into the conversation.
+
+    When a query result was stored as an artifact (you received an
+    artifact handle like art:xxx), pass artifact_id instead of data_json.
+    The tool loads the full dataset directly — no need to re-query.
 
     Returns: total, mean, median, min, max, count, std, top-N and bottom-N
     rows by the value column, plus optional group-by aggregation.
 
-    WORKFLOW EXAMPLE:
-    Step 1: run_bq_query("SELECT service_name, SUM(total_cost) as cost FROM ... GROUP BY service_name")
-    Step 2: summarize_data(data_json=<query_result>, group_by="service_name", value_column="cost")
-    → Returns stats + top/bottom 5 services + per-service totals with percentages
-
     Args:
-        data_json: JSON array of objects (pass raw tool output from run_bq_query / run_sql_query).
-        group_by: Optional column name to group by (e.g. "service_description", "project_name").
-                  When set, returns per-group totals sorted descending.
-        value_column: Column to aggregate. Auto-detected if empty — picks first column whose
-                      name contains cost, spend, savings, price, or amount.
+        data_json: JSON array of objects. Leave empty when using artifact_id.
+        artifact_id: Artifact handle from a previous large result.
+        group_by: Optional column name to group by.
+        value_column: Column to aggregate. Auto-detected if empty.
     """
+    # Load from artifact store if handle provided
+    if artifact_id:
+        _artifact_dir = Path(__file__).resolve().parent.parent / "state" / "artifacts"
+        digest = artifact_id.removeprefix("art:")
+        txt_path = _artifact_dir / f"{digest}.txt"
+        if txt_path.exists():
+            data_json = txt_path.read_text(encoding="utf-8")
+        else:
+            return f"Error: Artifact {artifact_id} not found in store."
+
     data = _parse_data(data_json)
     if not data:
-        return "Error: Could not parse data_json. Provide a JSON array of objects."
+        return "Error: Could not parse data_json. Provide a JSON array of objects or a valid artifact_id."
     if len(data) == 0:
         return json.dumps({"error": "Empty dataset", "row_count": 0})
 

@@ -18,7 +18,7 @@ const COLORS = [
   'var(--chart-8, #14b8a6)',
 ]
 
-const CHART_TYPES = ['bar', 'line', 'area', 'hbar', 'pie', 'donut']
+const CHART_TYPES = ['bar', 'stacked', 'line', 'area', 'hbar', 'pie', 'donut']
 
 function ChartTypeIcon({ type }) {
   const common = {
@@ -80,6 +80,21 @@ function ChartTypeIcon({ type }) {
     )
   }
 
+  if (type === 'stacked') {
+    return (
+      <svg {...common}>
+        <path d="M4 19V5" />
+        <path d="M4 19h16" />
+        <rect x="7" y="13" width="3" height="3" rx="0" fill="currentColor" opacity="0.3" />
+        <rect x="7" y="9" width="3" height="4" rx="0" fill="currentColor" opacity="0.6" />
+        <rect x="12" y="10" width="3" height="3" rx="0" fill="currentColor" opacity="0.3" />
+        <rect x="12" y="5" width="3" height="5" rx="0" fill="currentColor" opacity="0.6" />
+        <rect x="17" y="11" width="3" height="4" rx="0" fill="currentColor" opacity="0.3" />
+        <rect x="17" y="8" width="3" height="3" rx="0" fill="currentColor" opacity="0.6" />
+      </svg>
+    )
+  }
+
   return (
     <svg {...common}>
       <path d="M4 19V5" />
@@ -93,6 +108,7 @@ function ChartTypeIcon({ type }) {
 
 const CHART_TYPE_LABELS = {
   bar: 'Bar',
+  stacked: 'Stacked',
   line: 'Line',
   area: 'Area',
   hbar: 'H-Bar',
@@ -103,7 +119,7 @@ const CHART_TYPE_LABELS = {
 /**
  * Auto-detect the best chart type based on data characteristics.
  */
-function detectBestChartType(data, labelKey, valueKeys) {
+function detectBestChartType(data, labelKey, valueKeys, isMultiCloud) {
   if (!data || data.length === 0) return 'bar'
 
   const rowCount = data.length
@@ -117,6 +133,12 @@ function detectBestChartType(data, labelKey, valueKeys) {
 
   if (isTimeSeries) return hasMultipleValues ? 'area' : 'line'
 
+  // Multi-cloud pivoted data → stacked bar
+  if (isMultiCloud && hasMultipleValues) return 'stacked'
+
+  // Multiple value keys → stacked bar for comparison
+  if (hasMultipleValues) return 'stacked'
+
   // Few categories with single value → donut/pie
   if (distinctLabels <= 6 && !hasMultipleValues) return 'donut'
 
@@ -124,23 +146,43 @@ function detectBestChartType(data, labelKey, valueKeys) {
   const avgLabelLen = labels.reduce((s, l) => s + String(l).length, 0) / rowCount
   if (rowCount > 8 || avgLabelLen > 20) return 'hbar'
 
-  // Multiple value keys → grouped bar
-  if (hasMultipleValues) return 'bar'
-
   return 'bar'
 }
 
 /**
  * Try to extract chartable JSON arrays from tool_result strings.
  * Returns an array of { label, data, labelKey, valueKeys } objects.
+ *
+ * When data contains a `_cloud` column (from run_multi_cloud_query),
+ * pivots the data so each cloud becomes a separate series — enabling
+ * grouped/stacked bar comparisons.
+ *
+ * When multiple tool_result events have similar schemas (same numeric
+ * column names), merges them into a single combined chart.
  */
 export function extractChartData(events) {
   if (!events?.length) return []
 
   const charts = []
+  // Track run_query results for potential merging
+  const runQueryResults = []
+
+  // Tools whose output is recommendations/findings, not chart-friendly data
+  const SKIP_CHART_TOOLS = new Set([
+    'evaluate_vm_rightsizing',
+    'score_recommendations',
+    'cross_examine_recommendations',
+    'summarize_data',
+  ])
+
+  // Max items to render in a single chart to prevent dense/unreadable graphs
+  const MAX_CHART_ITEMS = 20
 
   for (const evt of events) {
     if (evt.type !== 'tool_result' || !evt.result) continue
+
+    // Skip tools that produce findings/recommendations, not chart data
+    if (SKIP_CHART_TOOLS.has(evt.tool)) continue
 
     let parsed
     try {
@@ -220,12 +262,99 @@ export function extractChartData(events) {
 
     if (data.length < 1) continue
 
+    // Check for _cloud column → pivot into per-cloud value columns
+    const cloudCol = Object.keys(data[0]).find(
+      (k) => k === '_cloud' || k === 'cloud' || k === 'Cloud'
+    )
+    if (cloudCol && valueKeys.length === 1) {
+      const clouds = [...new Set(data.map((r) => r[cloudCol]))]
+      if (clouds.length >= 2 && clouds.length <= 6) {
+        // Find the non-cloud label key
+        const pivotLabelKey = stringKeys.find((k) => k !== cloudCol) || labelKey
+        // Build pivoted data: { service: "Compute", AWS: 123, Azure: 456, GCP: 789 }
+        const grouped = {}
+        const vk = valueKeys[0]
+        for (const row of data) {
+          const label = row[pivotLabelKey]
+          if (!grouped[label]) {
+            grouped[label] = { [pivotLabelKey]: label }
+            for (const c of clouds) grouped[label][c] = 0
+          }
+          grouped[label][row[cloudCol]] = (grouped[label][row[cloudCol]] || 0) + (row[vk] || 0)
+        }
+        const pivoted = Object.values(grouped)
+        if (pivoted.length >= 1) {
+          charts.push({
+            label: evt.tool || 'Cloud comparison',
+            data: pivoted,
+            labelKey: pivotLabelKey,
+            valueKeys: clouds,
+            isMultiCloud: true,
+          })
+          continue
+        }
+      }
+    }
+
+    // For run_query results, collect for potential merging
+    if (evt.tool === 'run_query') {
+      // Cap at MAX_CHART_ITEMS — sort by first numeric key descending and take top N
+      if (data.length > MAX_CHART_ITEMS) {
+        data.sort((a, b) => (b[valueKeys[0]] || 0) - (a[valueKeys[0]] || 0))
+        data = data.slice(0, MAX_CHART_ITEMS)
+      }
+      runQueryResults.push({ data, labelKey, valueKeys, label: evt.tool })
+      continue
+    }
+
+    // Cap non-query charts too
+    if (data.length > MAX_CHART_ITEMS) {
+      data.sort((a, b) => (b[valueKeys[0]] || 0) - (a[valueKeys[0]] || 0))
+      data = data.slice(0, MAX_CHART_ITEMS)
+    }
+
     charts.push({
       label: evt.tool || 'Query result',
       data,
       labelKey,
       valueKeys,
     })
+  }
+
+  // Merge multiple run_query results with similar schemas into one chart
+  if (runQueryResults.length > 1) {
+    // Check if all have same numeric column names (e.g., all have "cost" or "total_cost")
+    const firstValueKeys = runQueryResults[0].valueKeys.map((k) => k).sort().join(',')
+    const allSameSchema = runQueryResults.every(
+      (r) => r.valueKeys.map((k) => k).sort().join(',') === firstValueKeys
+    )
+    if (allSameSchema) {
+      // Merge all data into one array, deduplicate by label
+      const mergedLabelKey = runQueryResults[0].labelKey
+      const mergedValueKeys = runQueryResults[0].valueKeys
+      let mergedData = []
+      for (const rq of runQueryResults) {
+        mergedData = mergedData.concat(rq.data)
+      }
+      // Sort by first value key descending
+      mergedData.sort((a, b) => (b[mergedValueKeys[0]] || 0) - (a[mergedValueKeys[0]] || 0))
+      // Take top entries to avoid huge charts
+      if (mergedData.length > 15) mergedData = mergedData.slice(0, 15)
+
+      charts.push({
+        label: 'Combined results',
+        data: mergedData,
+        labelKey: mergedLabelKey,
+        valueKeys: mergedValueKeys,
+      })
+    } else {
+      // Different schemas — keep as separate charts
+      for (const rq of runQueryResults) {
+        charts.push(rq)
+      }
+    }
+  } else if (runQueryResults.length === 1) {
+    charts.push(runQueryResults[0])
   }
 
   return charts
@@ -274,11 +403,11 @@ function PieLabel({ cx, cy, midAngle, outerRadius, percent, name }) {
 }
 
 export default function ChartView({ chartData }) {
-  const { data, labelKey, valueKeys } = chartData || {}
+  const { data, labelKey, valueKeys, isMultiCloud, title } = chartData || {}
 
   const bestType = useMemo(
-    () => detectBestChartType(data, labelKey, valueKeys),
-    [data, labelKey, valueKeys]
+    () => detectBestChartType(data, labelKey, valueKeys, isMultiCloud),
+    [data, labelKey, valueKeys, isMultiCloud]
   )
   const [chartType, setChartType] = useState(null) // null = use auto-detected
 
@@ -326,11 +455,13 @@ export default function ChartView({ chartData }) {
                 tickFormatter={(v) => truncateLabel(v, 25)}
                 interval={0}
                 height={80}
+                label={{ value: labelKey, position: 'insideBottom', offset: -5, fill: 'var(--text-secondary)', fontSize: 11 }}
               />
               <YAxis
                 tickFormatter={formatCurrency}
                 tick={{ fill: 'var(--text-secondary)', fontSize: 11 }}
                 width={65}
+                label={{ value: valueKeys[0], angle: -90, position: 'insideLeft', offset: 5, fill: 'var(--text-secondary)', fontSize: 11 }}
               />
               <Tooltip content={<CustomTooltip />} />
               {valueKeys.length > 1 && <Legend />}
@@ -341,14 +472,44 @@ export default function ChartView({ chartData }) {
           </ResponsiveContainer>
         )}
 
+        {activeType === 'stacked' && (
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={data} margin={{ top: 10, right: 20, left: 10, bottom: 60 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
+              <XAxis
+                dataKey={labelKey}
+                angle={-35}
+                textAnchor="end"
+                tick={{ fill: 'var(--text-secondary)', fontSize: 11 }}
+                tickFormatter={(v) => truncateLabel(v, 25)}
+                interval={0}
+                height={80}
+                label={{ value: labelKey, position: 'insideBottom', offset: -5, fill: 'var(--text-secondary)', fontSize: 11 }}
+              />
+              <YAxis
+                tickFormatter={formatCurrency}
+                tick={{ fill: 'var(--text-secondary)', fontSize: 11 }}
+                width={65}
+                label={{ value: valueKeys[0], angle: -90, position: 'insideLeft', offset: 5, fill: 'var(--text-secondary)', fontSize: 11 }}
+              />
+              <Tooltip content={<CustomTooltip />} />
+              <Legend />
+              {valueKeys.map((vk, i) => (
+                <Bar key={vk} dataKey={vk} stackId="stack" fill={COLORS[i % COLORS.length]} />
+              ))}
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+
         {activeType === 'hbar' && (
           <ResponsiveContainer width="100%" height={Math.max(300, data.length * 36)}>
-            <BarChart data={data} layout="vertical" margin={{ top: 10, right: 20, left: 10, bottom: 10 }}>
+            <BarChart data={data} layout="vertical" margin={{ top: 10, right: 20, left: 10, bottom: 25 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" horizontal={false} />
               <XAxis
                 type="number"
                 tickFormatter={formatCurrency}
                 tick={{ fill: 'var(--text-secondary)', fontSize: 11 }}
+                label={{ value: valueKeys[0], position: 'insideBottom', offset: -15, fill: 'var(--text-secondary)', fontSize: 11 }}
               />
               <YAxis
                 type="category"
@@ -378,11 +539,13 @@ export default function ChartView({ chartData }) {
                 tickFormatter={(v) => truncateLabel(v, 25)}
                 interval={0}
                 height={80}
+                label={{ value: labelKey, position: 'insideBottom', offset: -5, fill: 'var(--text-secondary)', fontSize: 11 }}
               />
               <YAxis
                 tickFormatter={formatCurrency}
                 tick={{ fill: 'var(--text-secondary)', fontSize: 11 }}
                 width={65}
+                label={{ value: valueKeys[0], angle: -90, position: 'insideLeft', offset: 5, fill: 'var(--text-secondary)', fontSize: 11 }}
               />
               <Tooltip content={<CustomTooltip />} />
               {valueKeys.length > 1 && <Legend />}
@@ -413,11 +576,13 @@ export default function ChartView({ chartData }) {
                 tickFormatter={(v) => truncateLabel(v, 25)}
                 interval={0}
                 height={80}
+                label={{ value: labelKey, position: 'insideBottom', offset: -5, fill: 'var(--text-secondary)', fontSize: 11 }}
               />
               <YAxis
                 tickFormatter={formatCurrency}
                 tick={{ fill: 'var(--text-secondary)', fontSize: 11 }}
                 width={65}
+                label={{ value: valueKeys[0], angle: -90, position: 'insideLeft', offset: 5, fill: 'var(--text-secondary)', fontSize: 11 }}
               />
               <Tooltip content={<CustomTooltip />} />
               {valueKeys.length > 1 && <Legend />}

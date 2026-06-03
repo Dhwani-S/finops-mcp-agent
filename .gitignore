@@ -25,6 +25,7 @@ Thumbs.db
 # Project
 reports/*
 !reports/.gitkeep
+state/artifacts/
 
 # Resources — contains internal table schemas, data guides, and org-specific config
 resources/

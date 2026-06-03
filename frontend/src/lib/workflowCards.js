@@ -25,6 +25,13 @@ export const WORKFLOW_CARDS = [
     prompt: 'What savings opportunities and recommendations exist across all clouds?',
   },
   {
+    id: 'rightsizing',
+    icon: 'gauge',
+    label: 'VM & Disk Rightsizing',
+    description: 'Analyze utilization and get resize recommendations for VMs and storage',
+    prompt: 'Run a VM and disk rightsizing analysis on Azure resources',
+  },
+  {
     id: 'investigate-spike',
     icon: 'alert-triangle',
     label: 'Investigate Spike',
@@ -37,6 +44,13 @@ export const WORKFLOW_CARDS = [
     label: 'Trend Analysis',
     description: 'Month-over-month growth, forecasting, and variance analysis',
     prompt: 'Show me month-over-month cost growth across all clouds',
+  },
+  {
+    id: 'what-if',
+    icon: 'shuffle',
+    label: 'What-If Migration',
+    description: 'Estimate cost impact of migrating workloads between clouds',
+    prompt: 'What if we migrate the top 5 AWS workloads to GCP? Show estimated cost impact',
   },
   {
     id: 'budget-check',

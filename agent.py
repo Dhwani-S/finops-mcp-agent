@@ -31,6 +31,8 @@ from google.genai import types
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
+import artifacts
+import memory
 from trace import SessionTrace, TurnTrace, ToolCallTrace, TokenUsage
 
 # ---------------------------------------------------------------------------
@@ -53,11 +55,7 @@ _servers_dir = _project_root / "mcp_servers"
 SERVERS: dict[str, dict] = {
     "bq": {
         "command": _py,
-        "args": [str(_servers_dir / "finops_bq_server.py")],
-    },
-    "sql": {
-        "command": _py,
-        "args": [str(_servers_dir / "finops_sql_server.py")],
+        "args": [str(_servers_dir / "finops_bq_server_v2.py")],
     },
     "analytics": {
         "command": _py,
@@ -71,6 +69,10 @@ SERVERS: dict[str, dict] = {
         "command": _py,
         "args": [str(_servers_dir / "finops_cross_examine_server.py")],
     },
+    "sql": {
+        "command": _py,
+        "args": [str(_servers_dir / "finops_sql_server_deprecated.py")],
+    },
 }
 
 # JSON Schema keys that Gemini function calling doesn't support
@@ -79,6 +81,11 @@ _STRIP_KEYS = frozenset({"additionalProperties", "$schema", "$id", "title"})
 # Max chars of tool output to keep in conversation history.
 # Large BQ results (500 rows of JSON) pollute context and cause hallucinations.
 _MAX_TOOL_RESULT_CHARS = 4000
+
+# History pruning: after this many Content entries, compress older tool
+# results to one-line summaries.  Keeps context lean as sessions grow.
+_HISTORY_PRUNE_THRESHOLD = 20
+_HISTORY_KEEP_RECENT = 10  # keep last N entries verbatim
 
 # Token tracking — toggle via env or at runtime
 TOKEN_TRACKING = os.getenv("TOKEN_TRACKING", "true").lower() in ("true", "1", "yes")
@@ -96,30 +103,34 @@ _TOOL_ROUTES: list[tuple[frozenset[str], set[str]]] = [
                 "list file", "available report", "generate report"}),
      {"file"}),
 
-    # GCP cost queries
+    # Identity / person / team lookup
+    (frozenset({"who owns", "identity", "lookup", "core_id", "core id",
+                "person", "team member", "my team", "belongs to",
+                "project owner", "subscriber"}),
+     {"sql", "bq", "analytics"}),
+
+    # Cloud cost queries (all clouds now in BQ)
     (frozenset({"gcp", "bigquery", "bq", "google cloud", "gcp project",
-                "gcp service", "gcp cost", "gcp spend"}),
+                "gcp service", "gcp cost", "gcp spend",
+                "azure", "aws", "recommendation", "subscription",
+                "reservation", "savings plan"}),
      {"bq", "analytics"}),
 
-    # Azure/AWS recommendations & K8s
-    (frozenset({"azure", "aws", "recommendation", "k8s", "kubernetes",
-                "subscription", "reservation", "savings plan"}),
-     {"sql", "analytics"}),
-
-    # Identity lookups
-    (frozenset({"identity", "core_id", "coreid", "who owns", "project owner",
-                "lookup"}),
-     {"sql"}),
+    # Kubernetes / K8s queries
+    (frozenset({"k8s", "k8", "kubernetes", "namespace", "pod", "container",
+                "cluster", "core hours", "wasted cost", "k8s cost",
+                "kubernetes cost", "aks", "eks", "gke"}),
+     {"bq", "analytics"}),
 
     # Analytics-specific
     (frozenset({"anomaly", "anomalies", "forecast", "trend", "growth",
                 "compare", "month over month", "mom", "wow", "qoq"}),
-     {"bq", "sql", "analytics"}),
+     {"bq", "analytics"}),
 
     # Multi-cloud
     (frozenset({"multi-cloud", "multicloud", "all cloud", "across cloud",
                 "aws azure gcp", "total spend", "cloud spend"}),
-     {"bq", "sql", "analytics"}),
+     {"bq", "analytics"}),
 
     # Cross-examine / what-if analysis
     (frozenset({"cross examine", "cross-examine", "what if", "what-if",
@@ -127,6 +138,14 @@ _TOOL_ROUTES: list[tuple[frozenset[str], set[str]]] = [
                 "cheaper cloud", "compare clouds", "save money",
                 "would have saved", "should we use", "better cloud",
                 "cross cloud", "cloud comparison"}),
+     {"bq", "analytics", "cross_examine"}),
+
+    # Rightsizing / utilization analysis
+    (frozenset({"rightsizing", "right-sizing", "rightsize", "right size",
+                "utilization", "cpu utilization", "memory utilization",
+                "idle vm", "idle instance", "underutilized", "oversized",
+                "overprovisioned", "vm sizing", "instance sizing",
+                "downsize", "upsize", "scale down"}),
      {"bq", "analytics", "cross_examine"}),
 ]
 
@@ -145,8 +164,8 @@ def _route_query(query: str) -> set[str] | None:
     if not matched_servers:
         return None  # No match → use all servers (safe fallback)
 
-    # Auto-include analytics when BQ or SQL is active (for summarize, chart, etc.)
-    if matched_servers & {"bq", "sql"}:
+    # Auto-include analytics when BQ is active (for summarize, chart, etc.)
+    if matched_servers & {"bq"}:
         matched_servers.add("analytics")
 
     return matched_servers
@@ -268,13 +287,32 @@ class FinOpsAgent:
 
     # -- system prompt -----------------------------------------------------
 
+    def _memory_context(self) -> str:
+        """Build a context block from persistent memory (preferences + facts)."""
+        prefs = memory.read_all(kinds=["preference"])
+        facts = memory.read_all(kinds=["fact"])
+        if not prefs and not facts:
+            return ""
+
+        lines = ["\n## User Context (from Memory)\n"]
+        if prefs:
+            lines.append("**Known preferences:**")
+            for p in prefs:
+                lines.append(f"- {p.descriptor}")
+        if facts:
+            lines.append("\n**Known facts:**")
+            for f in facts:
+                lines.append(f"- {f.descriptor}")
+        lines.append("\nUse these to pre-fill scope and avoid re-asking.")
+        return "\n".join(lines)
+
     async def _build_system_prompt(self) -> str:
         """Load all MCP resources and compose the system prompt.
         
-        Caps each resource at 2000 chars to prevent prompt bloat.
+        Caps each resource at 4000 chars to prevent prompt bloat.
         """
         resource_sections: list[str] = []
-        _MAX_RESOURCE_CHARS = 2000
+        _MAX_RESOURCE_CHARS = 4000
 
         for name, session in self._sessions.items():
             try:
@@ -305,9 +343,120 @@ class FinOpsAgent:
         resources_block = "\n\n".join(resource_sections)
 
         template = _PROMPT_FILE.read_text(encoding="utf-8")
-        return template.replace("{{RESOURCES_BLOCK}}", resources_block)
+        prompt = template.replace("{{RESOURCES_BLOCK}}", resources_block)
+
+        # Inject persistent memory context (preferences, facts)
+        mem_ctx = self._memory_context()
+        if mem_ctx:
+            prompt += "\n" + mem_ctx
+
+        return prompt
+
+    # -- history management ------------------------------------------------
+
+    def _prune_history(self) -> None:
+        """Compress old history entries to save tokens.
+
+        When history exceeds _HISTORY_PRUNE_THRESHOLD entries, tool-result
+        entries older than the most recent _HISTORY_KEEP_RECENT are
+        collapsed to one-line summaries.  User messages and model text
+        responses are kept verbatim (they're small).
+        """
+        if len(self._history) <= _HISTORY_PRUNE_THRESHOLD:
+            return
+
+        cutoff = len(self._history) - _HISTORY_KEEP_RECENT
+        pruned = 0
+
+        for i in range(cutoff):
+            entry = self._history[i]
+            if not hasattr(entry, 'parts'):
+                continue
+            new_parts = []
+            for part in entry.parts:
+                if part.function_response:
+                    # Compress tool results to one-line summaries
+                    fr = part.function_response
+                    result = fr.response.get("result", "") if fr.response else ""
+                    if len(result) > 200:
+                        summary = result[:150].replace("\n", " ") + "... [pruned]"
+                        new_parts.append(
+                            types.Part.from_function_response(
+                                name=fr.name,
+                                response={"result": summary},
+                            )
+                        )
+                        pruned += 1
+                    else:
+                        new_parts.append(part)
+                else:
+                    new_parts.append(part)
+            if new_parts:
+                self._history[i] = types.Content(
+                    role=entry.role,
+                    parts=new_parts,
+                )
+
+        if pruned:
+            logger.info("History pruned: %d old tool results compressed", pruned)
 
     # -- agentic loop ------------------------------------------------------
+
+    @staticmethod
+    def _extract_preferences(text: str) -> None:
+        """Detect and persist user-stated preferences from message text.
+
+        Uses simple pattern matching — no LLM call. Catches common
+        phrasings like "I'm on team X", "my team is X", "focus on GCP",
+        "default to monthly".
+        """
+        import re
+
+        # Normalize curly/smart quotes to ASCII before matching
+        normalized = text.replace("\u2018", "'").replace("\u2019", "'")
+        normalized = normalized.replace("\u201c", '"').replace("\u201d", '"')
+        lower = normalized.lower()
+
+        # Team patterns
+        team_patterns = [
+            r"(?:i(?:'m| am) (?:on|in|from|part of) (?:the )?(?:team )?['\"]?)([A-Za-z0-9 _-]{2,40}?)(?:['\"]? team\b)",
+            r"(?:my team is |my team: ?|team(?:\s*[:=]\s*))([A-Za-z0-9 _-]{2,40})",
+            r"(?:i(?:'m| am) (?:on|in|from) (?:the )?)([A-Za-z0-9 _-]{2,40}?) team\b",
+        ]
+        for pat in team_patterns:
+            m = re.search(pat, normalized, re.IGNORECASE)
+            if m:
+                team = m.group(1).strip().strip("'\"")
+                if len(team) > 1:
+                    memory.remember_preference("team", team, source="user")
+                    logger.info("Memory: recorded team preference → %s", team)
+                    break
+
+        # Cloud preference
+        cloud_patterns = [
+            r"(?:focus on|default to|prefer|primarily use|i use)\s+(gcp|aws|azure|google cloud)",
+            r"(?:my cloud is|our cloud is|we use)\s+(gcp|aws|azure|google cloud)",
+        ]
+        for pat in cloud_patterns:
+            m = re.search(pat, lower)
+            if m:
+                cloud = m.group(1).upper()
+                if cloud == "GOOGLE CLOUD":
+                    cloud = "GCP"
+                memory.remember_preference("default_cloud", cloud, source="user")
+                logger.info("Memory: recorded cloud preference → %s", cloud)
+                break
+
+        # Scope patterns (org-wide, specific project, subscription)
+        scope_patterns = [
+            r"(?:org[- ]?wide|organization[- ]?wide|across (?:the )?org)",
+            r"(?:all (?:projects|subscriptions|accounts))",
+        ]
+        for pat in scope_patterns:
+            if re.search(pat, lower):
+                memory.remember_preference("scope", "org-wide", source="user")
+                logger.info("Memory: recorded scope preference → org-wide")
+                break
 
     def _get_filtered_tools(self, query: str) -> list[types.FunctionDeclaration]:
         """Return tools relevant to the query, or all tools if no match."""
@@ -342,6 +491,15 @@ class FinOpsAgent:
                 parts=[types.Part.from_text(text=user_message)],
             )
         )
+
+        # Extract and persist any user preferences from the message
+        self._extract_preferences(user_message)
+
+        # Prune old history to keep context lean
+        self._prune_history()
+
+        # Refresh system prompt with latest memory context
+        self._system_prompt = await self._build_system_prompt()
 
         for round_num in range(MAX_TOOL_ROUNDS):
             turn_start = time.time()
@@ -442,24 +600,21 @@ class FinOpsAgent:
 
                     tc.result_chars = len(result_text)
 
-                    # Truncate large results to prevent context window pollution
+                    # Store large results as artifacts to save context tokens
                     if len(result_text) > _MAX_TOOL_RESULT_CHARS:
-                        truncated = result_text[:_MAX_TOOL_RESULT_CHARS]
-                        # Try to count rows for a helpful summary
-                        try:
-                            parsed = json.loads(result_text)
-                            if isinstance(parsed, list):
-                                row_count = len(parsed)
-                                truncated += (
-                                    f"\n\n[TRUNCATED — showing first ~{_MAX_TOOL_RESULT_CHARS} chars "
-                                    f"of {row_count} rows. Use the data above for analysis. "
-                                    f"Do NOT re-fetch — you already have the data.]"
-                                )
-                            else:
-                                truncated += "\n\n[TRUNCATED — result too large to show in full.]"
-                        except (json.JSONDecodeError, TypeError):
-                            truncated += "\n\n[TRUNCATED — result too large to show in full.]"
-                        result_text = truncated
+                        art_id = artifacts.put(
+                            result_text,
+                            source=f"{server}:{fc.name}",
+                            descriptor=f"{fc.name}({json.dumps(dict(fc.args) if fc.args else {}, default=str)[:80]}) → {len(result_text)} chars",
+                        )
+                        preview = result_text[:500].replace("\n", " ")
+                        result_text = (
+                            f"[Artifact {art_id} stored — {tc.result_chars} chars]\n"
+                            f"Preview: {preview}...\n\n"
+                            f"Full data is stored. To analyze it, call summarize_data "
+                            f'with artifact_id="{art_id}" (do NOT pass data_json).'
+                        )
+                        tc.artifact_id = art_id
                         tc.truncated = True
 
                     tc.duration_ms = (time.time() - call_start) * 1000
@@ -493,6 +648,8 @@ class FinOpsAgent:
         self._history.clear()
         self._trace.clear()
         self._auto_approve_queries = False
+        artifacts.clear()
+        memory.clear_session("")
 
     @property
     def server_status(self) -> dict[str, bool]:

@@ -1,0 +1,219 @@
+Session 4 - Model Context Protocol (MCP).
+Session 4 - MCP The Tool Protocol
+Little Bit of Python First
+We have covered this in the last session
+
+image.png
+
+code.interact() & asyncio & pdb
+
+Soon we will be handling lots of function calls. Here is a new trend that has started and pretty useful:
+
+image.png
+
+dotenv
+
+dotenv is a Python module that helps you manage secrets (environment variables) using a simple .env file. It allows you to store sensitive information (like API keys, database credentials, or configuration settings) separately from your code, making applications more secure and portable (especially when you add .env to your .gitignore file).
+
+image.png
+
+image.png
+
+Python Decorators
+
+Decorators in Python are functions that modify the behavior of other functions without changing their code. They wrap a function to add extra functionality, like logging, authentication, formatting input or output, or timing execution.
+
+image.png
+
+image.png
+
+try
+
+The try block in Python is used for exception handling, allowing a program to gracefully handle errors instead of crashing.
+
+How it works
+
+A try block tests a section of code for errors. If an error occurs, execution jumps to an except block. If there's a finally block, it always runs whether an error happens or not:
+
+image.png
+
+image.png
+
+Here's a little more complex code:
+
+image.png
+
+What is MCP, and why does it matter?
+The Journey to Model Context Protocol: From Basic LLMs to an Integrated AI Ecosystem:
+
+**Foundation LLMs: The Early Struggles:
+
+**When LLMs were first introduced, they were revolutionary in their ability to process and generate human-like text. However, they have one significant flow: they lacked true instruction-following capabilities. They could generate text based on patterns learned from vast amounts of data, but they were not inherently designed to understand or follow direct commands.
+For example, consider asking an early foundational LLM a straight forward question:
+User: "Who is the president of the USA?"
+LLM Response: "The most influential person in the world."
+
+The model, instead of answering directly, generated a response based on statistical likelihood rather than clear instruction adherence.
+
+Similarly, if someone asked the model to write an email:
+User: "Write an email stating that I will be on leave today."
+LLM Response: "And then send it to my manager."
+
+Rather than composing an actual email, the model inferred context in an unintended way, failing to directly execute the requested task.
+
+**The Introduction of Supervised Fine-Tuning (SFT) and Reinforcement Learning from Human Feedback (RLHF)
+**
+To make the LLMs more useful, researchers introduced Supervised Fine-Tuning (SFT) and RLHF.
+
+SFT involved training the model with explicit instruction-following data. Researchers curated datasets where human responses were directly associated with specific queries. This helped Models understand the structure of proper responses
+
+RLHF further refined these responses by incorporating human preferences. AI models were fine-tuned based on which response humans rated as better, ensuring more coherent and relevant replies.
+
+This significantly improved instruction-following behavior. Now, when asked, _"Write an email stating that I will be on leave toda_y", the model correctly generated:
+
+Subject: Leave Notification
+Body: Dear [Manager's Name], I wanted to inform you that I will be on leave today. Please let me know if you need any further details. Best regards, [Your Name]."
+
+However, as LLMs became more capable, new challenges arose. Users started expecting AI to handle factual and real-time queries, such as:
+
+"What is the square root of 14.52321?"
+
+"What is the current GDP of India?"
+
+These were difficult for the models because:
+
+LLMs are not calculators and do not inherently perform precise mathematical operations
+LLMs rely on pre-trained knowledge and do not have real-time access to external data sources like the latest economic reports or stock market updates.
+**The introduction of Function Calling
+
+**To address these limitations, AI developers, began integrating function-calling capabilities into models (or their workflows). Function calling allows an AI model to invoke external tools to retrieve up-to-date information or perform specific tasks.
+
+For instance, if someone asks:
+User: "What is the square root of 14.5232?"
+LLM (with function calling): Calls an external math function and responds: "The square root of 14.5232 is approximately 3.81."
+
+Similarly, if asked:
+User: "What is the current GDP of India?"
+LLM (with function calling): Fetches real-time data or searches the internet and replies: "As of 2025, the estimated GDP of India is $3.7 trillion."
+
+This enhancement allowed LLMs to provide **accurate, up-to-date, and computationally precise responses.
+
+**However, users quickly started demanding more action-oriented capabilities, such as:
+- "Actually send this email"
+- "Message this on Telegram"
+- "Book a flight for me"
+
+This pushed AI research toward an even more ambitious goal: enabling LLMs to take actions in the real world.
+
+The rise of Agentic AI
+
+The need for action-oriented AI led to the rise of Agentic AI, where models could interact with various applications and APIs to execute commands on behalf of users. This meant that AI could:
+
+- Access calendars to schedule meetings
+- Send messages via Telegram, etc
+- Perform online transactions
+
+Initially, this was implemented one application at a time. AI developers built integrations for specific services, such as Gmail for email, Slack for messaging, and Stripe for payments. However, this approach had limitations:
+
+1. Diverse Technology Stacks: Applications are built using different programming languages and frameworks (e.g. JavaScript, Python, Go), requiring unique integration methods for each.
+
+2. Inconsistent API structures: Every application follows its own API format, request/response model, and rate limits, making it difficult to create a standardized interaction model.
+
+3. Authentication Complexity: Different services use distinct authentication mechanisms (OAuth, API keys, session-based tokens), requiring AI systems to handle multiple security protocols.
+
+4. Scalability Issues: Manually integrating with thousands of applications was impractical, leading to inefficiencies, maintenance overhead, and fragmentation in AI-assisted automation
+
+**The Birth of Model Context Protocol (MCP)
+
+**To solve these integration challenges, a Model Context Protocol (MCP) was developed. MCP provided a unified protocol that allows AI models to interact seamlessly with any application, regardless of its underlying technology. These limitations highlighted the need for a universal, standardized approach - one that could seamlessly connect AI to any application without requiring individual, hand-coded integrations.
+
+With MCP, instead of writing custom integrations for each app, developers can now define a standardized way for AI to communicate with external services. This means:
+
+- A single protocol can connect LLM to databases, web services, and software applications
+- AI models can dynamically invoke tools based on context, without needing hardcoded integrations
+- Businesses and developers can easily extend AI capabilities across various ecosystems.
+
+**Example Use Case with MCP
+
+**Imagine a user requests:
+User: "Schedule a Zoom meeting with my team tomorrow at 10 AM"
+
+With MCP, the AI Model:
+1. Recognizes the request.
+2. Calls a standardized scheduling function (MCP-compliant API).
+3. Sends a request to Zoom's API.
+4. Retreives the meeting link and confirms: "Your Zoom meeting is scheduled for tomorrow at 10 AM. Here is the link: [meeting_link]."
+
+This enables a truly intelligent and autonomous AI ecosystem where models are not just passive responders but active agents capable of executing tasks across multiple domains.
+
+The journey from basic LLMs to MCP is important to understand why MCP is important, and why we need to know it.
+
+I am predicting that with MCP, things like lang-chain and other agentic frameworks will cease to exist, unless they integrate MCP. If they do integrate MCP, they'll survive for some time, as the next generation of LLM models will be trained on MCP workflows directly, and MCP will become more like an RAG application, where LLM refers to a "usage document" for an application and start using it.
+
+How MCP Standardizes Resources, Prompts, and Tools
+First let's take a look at how an example_mcp_server, would look like.
+
+We will make our client later on, but let's run this server directly using the inspector mode.
+
+mcp dev example_mcp_server.py
+
+**MCPDev.png
+**
+
+On this inspector, I want you to run a tool and notice the Request-Response sequence:
+ToolReqRes.png
+
+This is it! This is what MCP does internally and handles properly. It allows an LLM (actually a client, but more about it later), make a request in a fixed format.
+
+We can call any tool we want manually, but how does an LLM know which tool to call? LLM is actually already ready with "capabilities". This "capability" detail is shared, the moment any MCP connection is initiated. As you can remember in the inspector capabilities are essentially the set of:
+
+Tools
+Resources
+Prompts
+Ping
+Sampling
+Roots
+When we initialize a session, we send a list_tools() command. And similarly, we can seek other "capabilities as well:]
+
+image.png
+
+which returns back the list like this:
+
+image.png
+
+And believe me, this complete list is then sent as part of the prompt the the LLM! (That is why we need millions of input tokens).
+
+MCP Server-Client
+Python MCP Server and Python MCP Client
+
+Let's build a very simple MCP Server, and MCP Client and run it. A few things that you should know:
+
+our clients or servers can be in Python, typescript, java, kotlin, or even C#
+our client can "run" the MCP server, we do not need to manually start the server
+Agentic Use
+Make a simple Agentic use MCP (ollama version). Simply run this file (make sure that you have a .env file with GEMINI_API_KEY=gbhfd78wegf97243gr4fd84rfg79324f924 ) (of course, this is a fake key) and notice the output!
+
+MCP in 2026-2027!!
+MCP in 2026 and 2027 is NOT just going to be about what we learnt above. My prediction, as I shared earlier, is that Apps will cease to exist, and we are seeing MCP pushing in exactly that direction. One of the core libraries that I would like you to learn is prefab, an MCP framwork that allows LLMs to generate UI using MCP as a service. I tried to build it on my own in Arcturus 1.0, but nothing can beat a community supported and dedicated effort. Let's see how it works, and the code shown can be accessed here.
+
+Assignment
+Write your own MCP server with any 3 functions that do these things:
+
+something related to internet (search, fetch a page, get some data/api, etc)
+perform CRUD operations on a local file (can be of any time)
+communicates back to you via any UI.
+Then:
+
+uses the Prefab to push the UI related to above in your chrome plugin, web-app, desktop-app, etc.
+Then:
+
+show a prompt that forces the Agent to use all of these 3 including the Prefab UI, for example, Find the ownership details of Tata Sons, save those details in a text file and show it to me on a dashboard/webpage, etc. (UI must be made using Prefab).
+What are you submitting:
+
+YouTube demo of your Agent working (logs basically)
+GitHub code if you're ok to share your code with others.
+Above assignment fetches you 500 points. Max score is 2500 depending on how good you build something! Push the limits of what you can build using Prefab. You need to really get used to it. Experience with it, will push you midway in creating all the latest apps Anthropic and Gemini are creating.
+
+Additional 500pts if you share it with others on LinkedIn
+
+Transcript

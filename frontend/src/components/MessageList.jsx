@@ -22,12 +22,14 @@ function WorkflowIcon({ name, size = 20 }) {
       return <svg {...common}><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
     case 'gauge':
       return <svg {...common}><path d="M12 2a10 10 0 100 20 10 10 0 000-20z"/><path d="M12 6v6l4 2"/></svg>
+    case 'shuffle':
+      return <svg {...common}><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
     default:
       return null
   }
 }
 
-export default function MessageList({ messages, onSuggestion, suggestionsDisabled, chartMode }) {
+export default function MessageList({ messages, onSuggestion, onElicitationReply, suggestionsDisabled, chartMode }) {
   const endRef = useRef(null)
 
   useEffect(() => {
@@ -81,7 +83,7 @@ export default function MessageList({ messages, onSuggestion, suggestionsDisable
         <Message
           key={i}
           message={msg}
-          onOptionClick={onSuggestion}
+          onOptionClick={onElicitationReply || onSuggestion}
           disabled={suggestionsDisabled}
           chartMode={chartMode}
         />

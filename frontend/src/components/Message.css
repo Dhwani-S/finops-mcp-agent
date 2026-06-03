@@ -18,6 +18,32 @@
   line-height: 1.45;
 }
 
+/* Elicitation reply: hidden — shown inline in agent message instead */
+.message-user-elicit-reply {
+  display: none;
+}
+
+/* Elicitation confirmed: compact inline chip replacing the INPUT NEEDED block */
+.message-elicit-confirmed {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.35rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 12px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
+  line-height: 1.35;
+}
+
+.message-elicit-confirmed svg {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
 .message-user .message-content {
   font-size: inherit;
   line-height: inherit;

@@ -29,6 +29,8 @@ from sse_starlette.sse import EventSourceResponse
 from google.genai import types
 
 from agent import FinOpsAgent, MODEL, MAX_TOOL_ROUNDS
+import artifacts
+import memory
 from trace import TurnTrace, ToolCallTrace, TokenUsage
 
 # ---------------------------------------------------------------------------
@@ -90,10 +92,107 @@ def _extract_elicitation(text: str):
 class StreamingAgent(FinOpsAgent):
     """Extends FinOpsAgent to yield SSE events during the agentic loop."""
 
+    _PERCEPTION_PROMPT = (
+        "You are the Perception layer of a FinOps cost-management agent.\n"
+        "Decompose the user query into 2-5 ordered, dependency-aware goals.\n"
+        "Each goal is a short imperative sentence "
+        '(e.g. "Retrieve Azure K8s costs for last month").\n\n'
+        "Rules:\n"
+        "- Order goals so prerequisites come first.\n"
+        "- For SIMPLE queries that need only one step "
+        "(greetings, single lookups, basic questions), return an EMPTY goals list.\n"
+        "- Do NOT include goals about formatting, presenting, or returning data to the user.\n\n"
+        'Return JSON: {"goals": [{"text": "..."}]}'
+    )
+
+    _TOOL_LABELS = {
+        "get_table_schema": "Discovering schema",
+        "list_dimension_values": "Exploring dimensions",
+        "dry_run_query": "Estimating query cost",
+        "run_query": "Querying BigQuery",
+        "run_multi_cloud_query": "Multi-cloud query",
+        "detect_anomalies": "Detecting anomalies",
+        "forecast": "Forecasting costs",
+        "calculate_growth": "Calculating growth",
+        "compare_periods": "Comparing periods",
+        "summarize_data": "Summarizing results",
+        "format_currency": "Formatting currency",
+        "convert_to_chart_data": "Preparing chart",
+        "map_services_across_clouds": "Mapping services",
+        "cross_examine_recommendations": "Cross-examining",
+        "compare_cloud_unit_costs": "Comparing unit costs",
+        "generate_what_if_scenario": "Running what-if",
+        "score_recommendations": "Scoring recommendations",
+        "write_file": "Writing report",
+        "export_csv": "Exporting CSV",
+    }
+
     def __init__(self):
         super().__init__()
         self._sessions_history: dict[str, list[types.Content]] = {}
         self._sessions_auto_approve: dict[str, bool] = {}
+
+    # ── Perception: goal decomposition ──────────────────────────────────────
+
+    _JSON_FENCE_RE = _re.compile(r"```(?:json)?\s*\n?(.*?)\n?```", _re.DOTALL)
+
+    def _decompose_goals(self, user_message: str) -> list[dict] | None:
+        """Quick structured LLM call to decompose a query into goals.
+
+        Returns a list of goal dicts or None for simple queries.
+        """
+        try:
+            response = self._client.models.generate_content(
+                model=MODEL,
+                contents=[
+                    types.Content(
+                        role="user",
+                        parts=[types.Part.from_text(
+                            text=f"USER QUERY: {user_message}"
+                        )],
+                    )
+                ],
+                config=types.GenerateContentConfig(
+                    system_instruction=self._PERCEPTION_PROMPT,
+                    temperature=0.3,
+                    max_output_tokens=1024,
+                    thinking_config=types.ThinkingConfig(
+                        thinking_budget=128,
+                    ),
+                ),
+            )
+            candidate = response.candidates[0] if response.candidates else None
+            if not candidate or not candidate.content or not candidate.content.parts:
+                return None
+
+            # Thinking models put reasoning in thought parts — skip them
+            text = ""
+            for part in candidate.content.parts:
+                if getattr(part, "thought", False):
+                    continue
+                if part.text:
+                    text += part.text
+
+            if not text.strip():
+                logger.warning("Perception: model returned no text content")
+                return None
+
+            # Try to extract JSON from markdown fences first, then raw
+            m = self._JSON_FENCE_RE.search(text)
+            json_str = m.group(1) if m else text.strip()
+            parsed = json.loads(json_str)
+
+            raw_goals = parsed.get("goals", [])
+            if len(raw_goals) < 2:
+                return None
+            logger.info("Perception: %d goals decomposed", len(raw_goals))
+            return [
+                {"id": i, "text": g["text"], "status": "pending"}
+                for i, g in enumerate(raw_goals)
+            ]
+        except Exception as exc:
+            logger.warning("Perception failed: %s", exc)
+            return None
 
     def _get_history(self, session_id: str) -> list[types.Content]:
         if session_id not in self._sessions_history:
@@ -103,6 +202,8 @@ class StreamingAgent(FinOpsAgent):
     def clear_session(self, session_id: str) -> None:
         self._sessions_history.pop(session_id, None)
         self._sessions_auto_approve.pop(session_id, None)
+        artifacts.clear()
+        memory.clear_session(session_id)
 
     async def chat_stream(self, user_message: str, session_id: str = "default", cancel_event: asyncio.Event | None = None):
         """Async generator that yields SSE events as the agent works.
@@ -127,7 +228,23 @@ class StreamingAgent(FinOpsAgent):
             )
         )
 
+        # Extract and persist any user preferences from the message
+        self._extract_preferences(user_message)
+
+        # Refresh system prompt with latest memory context
+        self._system_prompt = await self._build_system_prompt()
+
         yield {"event": "thinking", "data": json.dumps({"message": "Understanding your question..."})}
+
+        # ── Perception: decompose into goals ──
+        goals = self._decompose_goals(user_message)
+        goal_index = 0  # tracks next goal to progress
+
+        if goals:
+            yield {
+                "event": "plan",
+                "data": json.dumps({"goals": goals}),
+            }
 
         for round_num in range(MAX_TOOL_ROUNDS):
             # Check if client disconnected
@@ -169,12 +286,28 @@ class StreamingAgent(FinOpsAgent):
             parts = candidate.content.parts or []
             fn_calls = [p for p in parts if p.function_call]
 
+            # Guard: if model returned completely empty response, skip appending
+            # to avoid corrupting history with empty model turns
+            has_text = any(p.text for p in parts if p.text)
+            if not fn_calls and not has_text:
+                # Empty model response — skip this round, retry
+                logger.warning("Empty model response (0 parts with content), retrying round %d", round_num + 1)
+                continue
+
             if not fn_calls:
                 text = "".join(p.text for p in parts if p.text) or ""
                 history.append(candidate.content)
 
                 # Extract structured elicitation block if present
                 prose, elicitation = _extract_elicitation(text)
+
+                # Finalize goals only if this is a real final answer,
+                # NOT if the agent is asking an elicitation question (goals still pending)
+                if goals and not elicitation:
+                    for g in goals:
+                        g["status"] = "done"
+                    yield {"event": "plan", "data": json.dumps({"goals": goals})}
+
                 yield {"event": "text", "data": json.dumps({"content": prose})}
                 if elicitation:
                     yield {"event": "elicitation", "data": json.dumps(elicitation)}
@@ -199,6 +332,13 @@ class StreamingAgent(FinOpsAgent):
                 srv = self._tool_map.get(fc.name)
                 server_batches.setdefault(srv, []).append((idx, fc))
 
+            # ── Goal progression: mark next goal as running ──
+            if goals and goal_index < len(goals):
+                goals[goal_index]["status"] = "running"
+                yield {"event": "plan", "data": json.dumps({"goals": goals})}
+
+            fn_responses: list[types.Part] = [None] * len(fn_calls)  # type: ignore[list-item]
+
             # Collect events from parallel batches via a queue
             event_queue: asyncio.Queue = asyncio.Queue()
 
@@ -206,6 +346,7 @@ class StreamingAgent(FinOpsAgent):
                 for idx, fc in calls:
                     args = dict(fc.args) if fc.args else {}
                     tool_start = time.time()
+
                     await event_queue.put({
                         "event": "tool_call",
                         "data": json.dumps({
@@ -237,7 +378,6 @@ class StreamingAgent(FinOpsAgent):
                             error_msg = result_text
 
                     truncated = len(result_text) > 2000
-                    # Truncate for SSE display text (full result goes to Gemini)
                     display_text = (
                         result_text[:2000] + "..."
                         if truncated
@@ -277,6 +417,12 @@ class StreamingAgent(FinOpsAgent):
             # Drain all queued events
             while not event_queue.empty():
                 yield await event_queue.get()
+
+            # ── Goal progression: mark current goal done ──
+            if goals and goal_index < len(goals):
+                goals[goal_index]["status"] = "done"
+                goal_index += 1
+                yield {"event": "plan", "data": json.dumps({"goals": goals})}
 
             history.append(
                 types.Content(role="user", parts=fn_responses)

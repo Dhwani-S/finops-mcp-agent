@@ -1,0 +1,215 @@
+%-------------------------
+% Resume in Latex
+% Author : Dhwani Suthar
+% Optimized for: FinOps
+%------------------------
+
+\documentclass[letterpaper,11pt]{article}
+
+\usepackage{latexsym}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{marvosym}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{xcolor}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+\usepackage[english]{babel}
+\usepackage{tabularx}
+\input{glyphtounicode}
+
+%----------FONT OPTIONS----------
+% sans-serif
+% \usepackage[sfdefault]{FiraSans}
+% \usepackage[sfdefault]{roboto}
+% \usepackage[sfdefault]{noto-sans}
+% \usepackage[default]{sourcesanspro}
+
+% serif
+% \usepackage{CormorantGaramond}
+% \usepackage{charter}
+
+
+\pagestyle{fancy}
+\fancyhf{} % clear all header and footer fields
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+% Adjust margins
+\addtolength{\oddsidemargin}{-0.5in}
+\addtolength{\evensidemargin}{-0.5in}
+\addtolength{\textwidth}{1in}
+\addtolength{\topmargin}{-.5in}
+\addtolength{\textheight}{1.0in}
+
+\urlstyle{same}
+
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{0in}
+
+% Sections formatting
+\titleformat{\section}{
+  \vspace{-4pt}\scshape\raggedright\large
+}{}{0em}{}[\color{black}\titlerule \vspace{-5pt}]
+
+% Ensure that generate pdf is machine readable/ATS parsable
+\pdfgentounicode=1
+
+%-------------------------
+% Custom commands
+\newcommand{\resumeItem}[1]{
+  \item\small{
+    {#1 \vspace{-2pt}}
+  }
+}
+
+\newcommand{\resumeSubheading}[4]{
+  \vspace{-2pt}\item
+    \begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}
+      \textbf{#1} & #2 \\
+      \textit{\small#3} & \textit{\small #4} \\
+    \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeSubSubheading}[2]{
+    \item
+    \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
+      \textit{\small#1} & \textit{\small #2} \\
+    \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeProjectHeading}[2]{
+    \item
+    \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
+      \small#1 & #2 \\
+    \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeSubItem}[1]{\resumeItem{#1}\vspace{-4pt}}
+
+\renewcommand\labelitemii{$\vcenter{\hbox{\tiny$\bullet$}}$}
+
+\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0.15in, label={}]}
+\newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
+\newcommand{\resumeItemListStart}{\begin{itemize}}
+\newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-5pt}}
+
+%-------------------------------------------
+%%%%%%  RESUME STARTS HERE  %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+\begin{document}
+
+%----------HEADING----------
+\begin{center}
+    \textbf{\Huge \scshape Dhwani Suthar} \\ \vspace{1pt}
+    \small +91-63554-76267 $|$ \href{mailto:dhwani.suthar02@gmail.com}{\underline{dhwani.suthar02@gmail.com}} $|$ 
+    \href{https://github.com/Dhwani-S}
+    {\underline{Github}} $|$ 
+    \href{https://www.linkedin.com/in/dhwani-suthar/}{\underline{linkedin.com/in/dhwani-suthar}} 
+\end{center}
+
+%-----------SUMMARY-----------
+\section{Summary}
+\textbf{FinOps \& Data Engineer} with nearly 3 years of experience architecting enterprise-grade Cloud Cost Management platforms. Expert in \textbf{Cost Allocation, Showback/Chargeback models}, and Budget Forecasting across Multi-Cloud environments (GCP, AWS, Azure). Proven track record of driving \$15M+ in annualized savings by designing and engineering custom tooling for anomaly detection and resource rightsizing. Deep technical proficiency in SQL, PySpark, and transforming complex Billing Data into actionable financial insights.
+
+%-----------TECHNICAL SKILLS-----------
+% Moved to top: Recruiters/Hiring Managers want to see the stack first.
+\section{Technical Skills}
+ \begin{itemize}[leftmargin=0.15in, label={}]
+    \small{\item{
+     \textbf{FinOps \& Cloud Cost}{: Cost Allocation Models, Chargeback/Showback, GCP Billing Exports, AWS Cost \& Usage Reports (CUR), Tagging Strategies, Anomaly Detection.} \\
+     \textbf{Tooling \& BI}{: dbt (Data Build Tool), Streamlit, Custom FinOps Dashboards, OTBI, SQL, Python.} \\
+     \textbf{Data Engineering}{: Data Modeling (Medallion Architecture), Apache Spark, Airflow, BigQuery, Databricks, ETL Pipelines.} \\
+     \textbf{Infrastructure}{: GCP, AWS, Azure, Kubernetes} \\
+    }}
+ \end{itemize}
+
+%-----------EXPERIENCE-----------
+\section{Experience}
+  \resumeSubHeadingListStart
+
+    \resumeSubheading
+      {Motorola Solutions}{July 2025 -- Present}
+      {Data Engineer (FinOps \& AI)}{Bangalore, India}
+      \resumeItemListStart
+        \resumeItem{\textbf{Financial Modelling \& Chargeback}: Architected a custom \textbf{Multi-Cloud Chargeback Platform} to allocate shared 13 custom environments compute costs to tenant business units. Achieved 99.9\% cost allocation accuracy, enabling precise showback reports for distributed teams.}
+        \resumeItem{\textbf{Margin Impact \& Optimization}: Engineered an Azure telemetry pipeline to track K8s pod utilization (CPU, IOPS), driving a strategic initiative to convert on-demand compute to spot/reserved instances, targeting a 10-15\% reduction in non-optimized spend and a 1\% overall margin improvement.}
+        \resumeItem{Leveraged cloud \textbf{recommendation exports} to build a centralized optimization engine, identifying potential savings by aggregating rightsizing metrics and idle resource data (e.g., detached volumes, underutilized VMs) into actionable dashboards.}
+        \resumeItem{\textbf{Billing Data Analysis}: Engineered ETL pipelines using Python (PySpark) and SQL to ingest raw Billing Exports and Prometheus metrics, transforming complex usage data into unified BI dashboards for leadership reporting.}
+        \resumeItem{\textbf{Anomaly Detection}: Developed a Python-based algorithmic auditing feature to monitor daily cloud spend trends, reducing false positive budget alerts by 40\% and preventing revenue leakage.}
+        \resumeItem{\textbf{Governance \& Tagging}: Established a Tagging Governance Framework to ensure 100\% resource attribution, working with engineering teams to enforce mandatory cost-center tags via pipelines.}
+        \resumeItem{\textbf{GenAI Asset Management \& ROI}: Architected 'AiHub' data pipelines and business intelligence dashboards aggregating telemetry across multi-vendor AI tools (Cursor, Claude, Gemini, GitHub Copilot) and VCS systems (GitHub, Bitbucket, Gerrit); engineered enterprise adoption and productivity metrics to calculate true ROI and optimize software licensing spend.}
+        \resumeItem{\textbf{Stakeholder Collaboration}: Partnered with cross-functional engineering and finance leadership to establish showback cadences, driving the actual implementation of the \$15M+ identified discount \& rightsizing opportunities.}
+      \resumeItemListEnd
+
+    \resumeSubheading
+      {Mastek}{Jan 2024 -- July 2025}
+      {Associate Consultant (Data \& GenAI)}{Ahmedabad, India}
+      \resumeItemListStart
+        \resumeItem{Developed a P2P (Procure-to-Pay) compliance algorithm in SQL/PLSQL that identified \textbf{£645k+} in early-receipting risks and \textbf{£214k} in unbilled spend for a major public sector client.}
+        \resumeItem{Spearheaded the R\&D of 'SQLator', a \textbf{Text-to-SQL} Generative AI tool using \textbf{LangChain} and \textbf{Neo4j GraphRAG}, enabling non-technical stakeholders to query complex Oracle Finance schemas via natural language.}
+        \resumeItem{Designed and deployed \textbf{Oracle APEX} dashboards to visualize OEE (Overall Equipment Effectiveness) metrics across three manufacturing plants, integrating IoT data streams to minimize production downtime.}
+        \resumeItem{Automated the ETL process for "Certificate of Analysis" generation, reducing manual reporting effort by \textbf{90\%} through dynamic SQL templating and stored procedures.}
+      \resumeItemListEnd
+
+    \resumeSubheading
+      {Jio Platforms Ltd.}{May 2023 -- July 2023}
+      {Data Engineering Intern (Observability)}{Mumbai, India}
+      \resumeItemListStart
+        \resumeItem{Processed high-volume system logs using \textbf{Splunk} (SPL), building real-time dashboards to monitor distributed system health and API error rates.}
+        \resumeItem{Developed Python scripts to parse unstructured log data into structured formats for downstream anomaly analysis.}
+    \resumeItemListEnd
+
+  \resumeSubHeadingListEnd
+
+%-----------PROJECTS-----------
+\section{Key Projects}
+    \resumeSubHeadingListStart
+    \resumeProjectHeading
+          {\textbf{FinOps MCP Agent: Autonomous Cloud Cost Analyst} $|$ \emph{MCP, A2A Protocol, Vertex AI, BigQuery, React} $|$ \href{https://github.com/Dhwani-S/finops-mcp-agent}{\textcolor{blue}{\underline{GitHub}}}}{}
+          \resumeItemListStart
+            \resumeItem{\textbf{Architected a custom agentic ReAct loop from scratch} orchestrating \textbf{Gemini 2.5 Pro} (Vertex AI) with \textbf{4 specialized MCP servers} (BigQuery, SQL Server, Analytics, File I/O), implementing dynamic \textbf{tool routing} across 25+ tools and \textbf{parallel cross-server execution} to minimize latency on multi-source FinOps queries.}
+            \resumeItem{\textbf{Engineered multi-cloud cost analysis} (AWS, Azure, GCP) with SQL injection guardrails, scope enforcement, and a \textbf{Human-in-the-Loop} dry-run cost gate. Built \textbf{anomaly detection} (Z-score, IQR) and \textbf{time-series forecasting} (linear regression, EMA) capabilities, served via a \textbf{React + SSE streaming} frontend with interactive elicitation controls.}
+            \resumeItem{\textbf{Implemented Google's A2A (Agent-to-Agent) protocol} to expose the agent as a discoverable sub-agent via JSON-RPC and Agent Card, enabling autonomous task delegation from a master orchestrator. Added structured \textbf{token-level observability} with Pydantic trace models and context window management for production reliability.}
+          \resumeItemListEnd
+    \resumeSubHeadingListEnd
+
+%-----------EDUCATION-----------
+\section{Education}
+  \resumeSubHeadingListStart
+    \resumeSubheading
+      {Charotar University of Science \& Technology}{May 2024}
+      {Bachelor of Technology in Computer Engineering}{CGPA: \textbf{9.79 / 10.0}}
+  \resumeSubHeadingListEnd
+
+%-----------ACHIEVEMENTS & CERTIFICATIONS-----------
+\section{Achievements \& Certifications}
+ \begin{itemize}[leftmargin=0.15in, label={}]
+    \small{
+     \item \textbf{Certifications}:
+     \vspace{-5pt} % Pulls the list up slightly
+     \begin{itemize}[leftmargin=0.2in, label={\tiny$\bullet$}]
+        \item EAG V3: Exhaustive Agentic AI by The School of AI (ongoing), MCP, A2A, Multi-Agent DAG, Browser/Desktop Agents, Observability
+        \item FinOps Foundation: Introduction to FinOps
+        \item Apache Airflow 3 Fundamentals (Astronomer)
+        \item Oracle Cloud GenAI Professional
+     \end{itemize}
+     
+     \item \textbf{Events}:
+     \vspace{-5pt}
+     \begin{itemize}[leftmargin=0.2in, label={\tiny$\bullet$}]
+        \item \textbf{Speaker}, \href{https://mcpmumbai26.sched.com/event/2NM53/agentic-dx-bringing-your-idp-into-the-ide-adnan-vahora-dhwani-suthar-motorola-solutions}{\textcolor{blue}{\underline{MCP Dev Summit Mumbai 2026}}} (Linux Foundation), ``Agentic DX: Bringing Your IDP into the IDE'' (Motorola Solutions)
+        \item \textbf{State-Level Winner}, Azadi Ka Amrit Mohotsav Hackathon
+     \end{itemize}
+     
+     \item \textbf{Awards}{: "People First Growth Award" (Motorola Solutions), "The Dream Team" \& "A True Ideator" (Mastek).}
+    }
+ \end{itemize}
+
+%-------------------------------------------
+\end{document}

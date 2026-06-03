@@ -21,6 +21,7 @@ import json
 import logging
 import math
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -60,6 +61,30 @@ def _load_resource_file(relative_path: str) -> str:
     return path.read_text(encoding="utf-8")
 
 
+# BQ uses full AWS service names; taxonomy uses short names.
+# This map normalises the most common mismatches.
+_BQ_SERVICE_ALIASES: dict[str, str] = {
+    "amazon elastic compute cloud": "amazon ec2",
+    "amazon relational database service": "amazon rds",
+    "amazon simple storage service": "amazon s3",
+    "amazon simple notification service": "amazon sns",
+    "amazon simple queue service": "amazon sqs",
+    "amazon simple email service": "amazon ses",
+    "elastic load balancing": "elastic load balancing",
+    "aws data transfer": "aws data transfer",
+    "savings plans for aws compute usage": "amazon ec2",  # savings plans are EC2-adjacent
+    "amazon elastic block store": "amazon ebs",
+    "amazon elastic file system": "amazon efs",
+    "amazon elastic container service": "amazon ecs",
+    "amazon elastic kubernetes service": "amazon eks",
+}
+
+
+def _normalise_service_name(name: str) -> str:
+    """Normalise a BQ service name to its taxonomy-friendly short form."""
+    return _BQ_SERVICE_ALIASES.get(name.lower(), name.lower())
+
+
 def _load_taxonomy() -> dict:
     """Load the cloud services taxonomy for cross-cloud mapping."""
     raw = _load_resource_file("analytics/cloud_services_taxonomy.json")
@@ -78,6 +103,22 @@ def _load_cross_examine_guide() -> dict:
         return {}
 
 
+_instance_map_cache: dict | None = None
+
+
+def _load_instance_map() -> dict:
+    """Load the compute instance mapping (Azure→AWS→GCP) with caching."""
+    global _instance_map_cache
+    if _instance_map_cache is not None:
+        return _instance_map_cache
+    raw = _load_resource_file("analytics/compute_instance_mapping.json")
+    try:
+        _instance_map_cache = json.loads(raw)
+        return _instance_map_cache
+    except (json.JSONDecodeError, TypeError):
+        return {"mappings": []}
+
+
 def _parse_data(data_json: str) -> list[dict] | None:
     """Parse JSON string into list of dicts."""
     if not isinstance(data_json, str):
@@ -90,6 +131,82 @@ def _parse_data(data_json: str) -> list[dict] | None:
 
 
 # ---------------------------------------------------------------------------
+# Compute family classification
+# ---------------------------------------------------------------------------
+
+# Maps Azure VM family prefixes to compute_vm sub-categories in the guide.
+# Order matters — longer prefixes first for correct matching.
+_AZURE_FAMILY_RULES: list[tuple[re.Pattern, str]] = [
+    (re.compile(r"^N[CDV]", re.IGNORECASE), "compute_vm_gpu"),
+    (re.compile(r"^F", re.IGNORECASE), "compute_vm_compute_optimized"),
+    (re.compile(r"^E", re.IGNORECASE), "compute_vm_memory_optimized"),
+    (re.compile(r"^L", re.IGNORECASE), "compute_vm_storage_optimized"),
+    (re.compile(r"^B", re.IGNORECASE), "compute_vm_burstable"),
+    (re.compile(r"^[DMA]", re.IGNORECASE), "compute_vm_general_purpose"),
+]
+
+
+def _classify_azure_vm_family(series_or_size: str) -> str:
+    """Return the benchmark key for an Azure VM series/size.
+
+    Examples:
+        'Dsv4 Series' → 'compute_vm_general_purpose'
+        'FSv2 Series' → 'compute_vm_compute_optimized'
+        'Edsv5 Series' → 'compute_vm_memory_optimized'
+        'D16s v4'      → 'compute_vm_general_purpose'
+
+    Falls back to generic 'compute_vm' if no match.
+    """
+    # Strip " Series" suffix and any leading "Virtual Machines" prefix
+    clean = re.sub(r"\s*Series\s*$", "", series_or_size, flags=re.IGNORECASE).strip()
+    clean = re.sub(r"^Virtual\s+Machines?\s+", "", clean, flags=re.IGNORECASE).strip()
+
+    # For compound names like "Dv3/DSv3", use first part
+    if "/" in clean:
+        clean = clean.split("/")[0].strip()
+
+    # Strip digits from middle of VM sizes like "D16s" → "D"
+    # But keep leading letters intact
+    lead = re.match(r"^([A-Za-z]+)", clean)
+    if not lead:
+        return "compute_vm"
+
+    prefix = lead.group(1)
+    for pattern, category in _AZURE_FAMILY_RULES:
+        if pattern.match(prefix):
+            return category
+
+    return "compute_vm"
+
+
+def _get_instance_equivalents(series_name: str) -> list[dict]:
+    """Look up instance mappings for a series name. Returns list of {azure, aws, gcp, vcpus, memory}."""
+    mapping_data = _load_instance_map()
+    all_mappings = mapping_data.get("mappings", [])
+
+    clean = re.sub(r"\s*Series\s*$", "", series_name, flags=re.IGNORECASE).strip()
+    if not clean:
+        return []
+
+    parts = clean.split("/")
+    pats: list[str] = []
+    for part in parts:
+        part = part.strip()
+        m = re.match(r"^([A-Za-z]{1,2}?)([a-zA-Z]*?)(v\d+)$", part)
+        if not m:
+            continue
+        family, suffix, ver = m.group(1), m.group(2), m.group(3)
+        pats.append(rf"{re.escape(family)}\d+{re.escape(suffix)}\s*{re.escape(ver)}")
+
+    if not pats:
+        return []
+
+    combined = "|".join(pats)
+    pat = re.compile(rf"^({combined})$", re.IGNORECASE)
+    return [m for m in all_mappings if pat.match(m["azure_vm_size"])]
+
+
+# ---------------------------------------------------------------------------
 # Resources — exposed to the agent via MCP
 # ---------------------------------------------------------------------------
 
@@ -99,9 +216,167 @@ def cross_examine_guide() -> str:
     return _load_resource_file("analytics/cross_examine_guide.json")
 
 
+@mcp.resource("cross-examine://compute-instance-mapping")
+def compute_instance_mapping_resource() -> str:
+    """Compute instance type mapping: Azure VM sizes → AWS instances → GCP instances (1293 entries)."""
+    return _load_resource_file("analytics/compute_instance_mapping.json")
+
+
 # ---------------------------------------------------------------------------
 # Tools
 # ---------------------------------------------------------------------------
+
+@mcp.tool()
+def map_compute_instances(
+    instance_names: str = Field(
+        description=(
+            "JSON array of instance names to map, e.g. "
+            '[{"cloud": "azure", "instance": "D4s v3"}, {"cloud": "aws", "instance": "m5.xlarge"}]. '
+            "cloud must be one of: azure, aws, gcp. "
+            "For Azure you can also pass a series name like 'Dsv4 Series' or "
+            "'Dv3/DSv3 Series' and the tool returns all VM sizes in that series. "
+            "Raw meter_sub_category values from BQ are accepted directly."
+        )
+    ),
+) -> str:
+    """Map specific compute VM/instance types across clouds.
+
+    Given one or more VM sizes from any cloud, returns the equivalent
+    instance types on the other clouds with vCPU and memory specs.
+    Use this for instance-level cross-examination of compute costs.
+
+    Accepts:
+    - Specific VM sizes: "D4s v3", "m5.xlarge", "n2-standard-4"
+    - Azure series names: "Dsv4 Series", "Dv3/DSv3 Series", "FSv2 Series"
+    - Raw Azure meter names: "Virtual Machines Dsv4 Series - D16s v4 - US East"
+    """
+    data = _parse_data(instance_names)
+    if not data:
+        return json.dumps({"error": "Invalid input. Provide a JSON array of instance objects."})
+
+    mapping_data = _load_instance_map()
+    all_mappings = mapping_data.get("mappings", [])
+
+    def _norm(s: str) -> str:
+        """Lowercase + collapse all whitespace/underscores for matching."""
+        return re.sub(r"[\s_]+", "", s.lower())
+
+    def _azure_series_to_pattern(name: str) -> re.Pattern | None:
+        """Convert an Azure series name like 'Dsv4' into a regex that matches
+        individual VM sizes like 'D4s v4', 'D16s v4', etc.
+
+        Series naming: FamilySuffixVersion  (e.g. Dsv4 → D + s + v4)
+        VM size naming: Family{N}Suffix vVersion (e.g. D4s v4)
+        """
+        clean = re.sub(r"\s*Series\s*$", "", name, flags=re.IGNORECASE).strip()
+        if not clean:
+            return None
+        parts = clean.split("/")
+        pats: list[str] = []
+        for part in parts:
+            part = part.strip()
+            m = re.match(r"^([A-Za-z]{1,2}?)([a-zA-Z]*?)(v\d+)$", part)
+            if not m:
+                continue
+            family = m.group(1)    # e.g. "D", "F", "E", "DC"
+            suffix = m.group(2)    # e.g. "s", "ds", "as", "S", ""
+            ver = m.group(3)       # e.g. "v4", "v3"
+            # Pattern: family + digits + suffix + optional space + version
+            pats.append(
+                rf"{re.escape(family)}\d+{re.escape(suffix)}\s*{re.escape(ver)}"
+            )
+        if not pats:
+            return None
+        return re.compile(rf"^({'|'.join(pats)})$", re.IGNORECASE)
+
+    # Build lookup indices with normalized keys
+    azure_idx: dict[str, dict] = {}
+    aws_idx: dict[str, list[dict]] = {}
+    gcp_idx: dict[str, list[dict]] = {}
+    for m in all_mappings:
+        azure_idx[_norm(m["azure_vm_size"])] = m
+        aws_idx.setdefault(_norm(m["aws_instance"]), []).append(m)
+        gcp_idx.setdefault(_norm(m["gcp_instance"]), []).append(m)
+
+    # Regex to extract VM size from Azure meter names like
+    # "Virtual Machines Dsv4 Series - D16s v4 - US East"
+    _AZURE_METER_RE = re.compile(
+        r"Virtual\s+Machines?\s+\S+\s+Series\s*-\s*(.+?)\s*-\s*\S",
+        re.IGNORECASE,
+    )
+    # Detect series-only names like "Dsv4 Series", "Dv3/DSv3 Series"
+    _AZURE_SERIES_RE = re.compile(
+        r"^[\w/]+\s+Series$|^[A-Z]{1,2}[a-z]*v\d+$|^[\w/]+v\d+\s+Series$",
+        re.IGNORECASE,
+    )
+
+    results = []
+    for item in data:
+        cloud = item.get("cloud", "").lower()
+        instance = item.get("instance", "").strip()
+
+        # Try to extract VM size from Azure meter name format
+        if cloud == "azure":
+            meter_match = _AZURE_METER_RE.search(instance)
+            if meter_match:
+                instance = meter_match.group(1).strip()
+
+        lookup = _norm(instance)
+
+        matches = []
+        if cloud == "azure":
+            # 1. Exact match
+            hit = azure_idx.get(lookup)
+            if hit:
+                matches = [hit]
+            else:
+                # 2. Series-level match: "Dsv4 Series" → all D{N}s v4 VMs
+                series_pat = _azure_series_to_pattern(instance)
+                if series_pat:
+                    matches = [
+                        m for m in all_mappings
+                        if series_pat.match(m["azure_vm_size"])
+                    ]
+                # 3. Fallback partial substring match
+                if not matches:
+                    matches = [
+                        m for k, m in azure_idx.items()
+                        if lookup in k or k in lookup
+                    ]
+        elif cloud == "aws":
+            matches = aws_idx.get(lookup, [])
+            if not matches:
+                matches = [m for entries in aws_idx.values() for m in entries
+                           if lookup in _norm(m["aws_instance"])]
+        elif cloud == "gcp":
+            matches = gcp_idx.get(lookup, [])
+            if not matches:
+                matches = [m for entries in gcp_idx.values() for m in entries
+                           if lookup in _norm(m["gcp_instance"])]
+
+        if matches:
+            results.append({
+                "query": {"cloud": cloud, "instance": instance},
+                "match_type": "series" if len(matches) > 1 else "exact",
+                "matches": [
+                    {
+                        "azure_vm_size": m["azure_vm_size"],
+                        "aws_instance": m["aws_instance"],
+                        "gcp_instance": m["gcp_instance"],
+                        "vcpus": m["vcpus"],
+                        "memory": m["memory"],
+                    }
+                    for m in matches[:15]  # Cap at 15 for series
+                ],
+            })
+        else:
+            results.append({
+                "query": {"cloud": cloud, "instance": instance},
+                "matches": [],
+                "note": f"No mapping found for {instance} on {cloud}",
+            })
+
+    return json.dumps({"results": results, "total_mappings_available": len(all_mappings)}, indent=2)
 
 @mcp.tool()
 def map_services_across_clouds(
@@ -149,8 +424,11 @@ def map_services_across_clouds(
         monthly_cost = float(item.get("monthly_cost", 0))
 
         # Find canonical mapping
-        lookup_key = service.lower()
+        lookup_key = _normalise_service_name(service)
         mapping = reverse_map.get(lookup_key)
+        if not mapping:
+            lookup_key = service.lower()
+            mapping = reverse_map.get(lookup_key)
 
         if not mapping:
             # Fuzzy match — check if service name contains a known mapping
@@ -373,12 +651,20 @@ def cross_examine_recommendations(
         usage_pattern = item.get("usage_pattern", "steady").lower()
         commitment = item.get("commitment_type", "on-demand").lower()
 
+        # Detect if this is an Azure VM series (e.g. "Dsv4 Series", "FSv2 Series")
+        is_vm_series = bool(re.search(r"(?:Series|v\d+)$", service.strip(), re.IGNORECASE))
+
         mapping = reverse_map.get(service.lower())
+        if not mapping:
+            mapping = reverse_map.get(_normalise_service_name(service))
         if not mapping:
             for known_name, known_map in reverse_map.items():
                 if known_name in service.lower() or service.lower() in known_name:
                     mapping = known_map
                     break
+            # If still no mapping but it's a VM series, treat as compute_vm
+            if not mapping and is_vm_series:
+                mapping = {"canonical": "compute_vm", "aws": "Amazon EC2", "azure": "Virtual Machines", "gcp": "Compute Engine"}
 
         rec = {
             "current_cloud": cloud.upper(),
@@ -389,10 +675,23 @@ def cross_examine_recommendations(
             "recommendations": [],
         }
 
+        # For VM series, use family-specific benchmark instead of generic compute_vm
+        if is_vm_series and cloud == "azure":
+            family_key = _classify_azure_vm_family(service)
+        else:
+            family_key = None
+
         # 1) Cross-cloud alternatives
         if mapping:
             canonical = mapping["canonical"]
-            bm = benchmarks.get(canonical, {})
+
+            # Use family-specific benchmark if available, else fall back to canonical
+            if family_key:
+                bm = benchmarks.get(family_key, benchmarks.get(canonical, {}))
+                effective_category = family_key
+            else:
+                bm = benchmarks.get(canonical, {})
+                effective_category = canonical
 
             for alt_cloud in target_set:
                 if alt_cloud == cloud:
@@ -406,7 +705,7 @@ def cross_examine_recommendations(
                     "type": "cross_cloud_switch",
                     "target_cloud": alt_cloud.upper(),
                     "target_service": alt_service,
-                    "canonical_category": canonical,
+                    "benchmark_category": effective_category,
                 }
 
                 if ratio is not None:
@@ -415,10 +714,28 @@ def cross_examine_recommendations(
                     r["estimated_monthly_cost"] = est_cost
                     r["estimated_monthly_savings"] = savings
                     r["savings_percent"] = round((1 - ratio) * 100, 1)
+                    r["pricing_ratio"] = ratio
                     r["confidence"] = "medium" if abs(ratio - 1.0) > 0.15 else "low"
+                    r["ratio_source"] = bm.get("source", "industry_benchmark")
                 else:
                     r["note"] = "Use compare_cloud_unit_costs with actual BQ data for precise comparison."
                     r["confidence"] = "requires_data"
+
+                # Enrich VM series with instance-level mappings
+                if is_vm_series and cloud == "azure":
+                    equivalents = _get_instance_equivalents(service)
+                    if equivalents:
+                        cloud_key = {"aws": "aws_instance", "gcp": "gcp_instance"}.get(alt_cloud)
+                        if cloud_key:
+                            r["instance_equivalents"] = [
+                                {
+                                    "azure": eq["azure_vm_size"],
+                                    alt_cloud: eq[cloud_key],
+                                    "vcpus": eq["vcpus"],
+                                    "memory": eq["memory"],
+                                }
+                                for eq in equivalents[:8]
+                            ]
 
                 # Pattern-based advice
                 if usage_pattern == "bursty":
@@ -429,7 +746,7 @@ def cross_examine_recommendations(
                 elif usage_pattern == "steady" and commitment == "on-demand":
                     r["pattern_advice"] = (
                         f"Steady on-demand workloads can save 30-60% with reservations/commitments. "
-                        f"Consider reserved pricing on any cloud before switching."
+                        f"Consider reserved pricing on either cloud before or after switching."
                     )
                 elif usage_pattern == "declining":
                     r["pattern_advice"] = (
@@ -453,9 +770,12 @@ def cross_examine_recommendations(
                     "confidence": "high",
                 })
 
-        # Sort recommendations by savings (highest first)
+        # Sort: cross-cloud with savings first, then commitment optimization
         rec["recommendations"].sort(
-            key=lambda x: x.get("estimated_monthly_savings", 0), reverse=True
+            key=lambda x: (
+                0 if x.get("type") == "cross_cloud_switch" else 1,
+                -(x.get("estimated_monthly_savings", 0)),
+            )
         )
         recommendations.append(rec)
 
@@ -522,6 +842,18 @@ def generate_what_if_scenario(
             if svc_name:
                 reverse_map[svc_name] = {"canonical": m["canonical"], **m}
 
+    def _lookup_service(service_name: str) -> dict | None:
+        """Look up service in reverse_map with alias + fuzzy fallback."""
+        key = _normalise_service_name(service_name)
+        hit = reverse_map.get(key)
+        if hit:
+            return hit
+        # fuzzy: check substring containment
+        for known, known_map in reverse_map.items():
+            if known in key or key in known:
+                return known_map
+        return None
+
     # Action multipliers
     action_multipliers = {
         "commit_reserved": 0.55,     # ~45% savings typical for 1-yr RI
@@ -552,11 +884,24 @@ def generate_what_if_scenario(
 
         if action.startswith("switch_to_"):
             target_cloud = action.replace("switch_to_", "").lower()
-            mapping = reverse_map.get(service.lower())
+            mapping = _lookup_service(service)
+
+            # Detect VM series and use family-specific benchmark
+            is_vm_series = bool(re.search(r"(?:Series|v\d+)$", service.strip(), re.IGNORECASE))
+            if not mapping and is_vm_series:
+                mapping = {"canonical": "compute_vm", "aws": "Amazon EC2", "azure": "Virtual Machines", "gcp": "Compute Engine"}
 
             if mapping:
                 canonical = mapping["canonical"]
-                ratio = benchmarks.get(canonical, {}).get(f"{cloud}_to_{target_cloud}")
+
+                # Family-specific ratio for VM series (e.g. compute_vm_compute_optimized)
+                if is_vm_series and cloud == "azure":
+                    family_key = _classify_azure_vm_family(service)
+                    bm = benchmarks.get(family_key, benchmarks.get(canonical, {}))
+                else:
+                    bm = benchmarks.get(canonical, {})
+
+                ratio = bm.get(f"{cloud}_to_{target_cloud}")
                 target_service = mapping.get(target_cloud, f"Equivalent on {target_cloud.upper()}")
 
                 if ratio:
@@ -575,6 +920,22 @@ def generate_what_if_scenario(
                 proj["projected_total"] = new_total
                 proj["savings_total"] = savings_total
                 proj["savings_monthly"] = round(monthly_cost - new_monthly, 2)
+                if ratio:
+                    proj["pricing_ratio"] = ratio
+                    proj["ratio_source"] = bm.get("source", "industry_benchmark")
+
+                # Include instance equivalents for VM series
+                if is_vm_series:
+                    equivalents = _get_instance_equivalents(service)
+                    if equivalents:
+                        cloud_key = {"aws": "aws_instance", "gcp": "gcp_instance"}.get(target_cloud)
+                        if cloud_key:
+                            proj["instance_equivalents"] = [
+                                {"azure": eq["azure_vm_size"], target_cloud: eq[cloud_key],
+                                 "vcpus": eq["vcpus"], "memory": eq["memory"]}
+                                for eq in equivalents[:8]
+                            ]
+
                 total_projected_annual += new_total
             else:
                 proj["projected_monthly"] = monthly_cost
@@ -639,6 +1000,247 @@ def generate_what_if_scenario(
             "Projections based on benchmark ratios and industry averages. "
             "Actual costs depend on negotiated rates, usage patterns, data transfer, "
             "and migration costs (not included). Validate with actual BQ pricing data."
+        ),
+    }, indent=2)
+
+
+# ---------------------------------------------------------------------------
+# Rightsizing rules cache
+# ---------------------------------------------------------------------------
+
+_rightsizing_cache: dict | None = None
+
+
+def _load_rightsizing_rules() -> dict:
+    """Load the VM rightsizing rules."""
+    global _rightsizing_cache
+    if _rightsizing_cache is not None:
+        return _rightsizing_cache
+    raw = _load_resource_file("analytics/vm_rightsizing_rules.json")
+    try:
+        _rightsizing_cache = json.loads(raw)
+        return _rightsizing_cache
+    except (json.JSONDecodeError, TypeError):
+        return {"rules": {}, "families": {}}
+
+
+def _detect_family(series_name: str) -> str | None:
+    """Detect VM family from a series/resource name."""
+    rules = _load_rightsizing_rules()
+    families = rules.get("families", {})
+    upper = series_name.upper().strip()
+    for fam_key, fam_data in families.items():
+        for s in fam_data.get("series", []):
+            s_up = s.upper()
+            if s_up in upper:
+                return fam_key
+            # Extract prefix (e.g. "D-Series" → "D", "Dsv4" stays "DSV4")
+            prefix = re.sub(r'[-\s]?SERIES$', '', s_up).strip()
+            if prefix and upper.startswith(prefix):
+                return fam_key
+    # Fallback: use the regex classifier
+    return _classify_azure_vm_family(series_name).replace("compute_vm_", "") or None
+
+
+def _parse_condition(condition: str) -> tuple[str, float, float | None]:
+    """Parse a condition string like '< 20', '> 85', '5-20', '30-60'.
+    Returns (operator, value1, value2).
+    operator: 'lt', 'gt', 'range'
+    """
+    condition = condition.strip()
+    if "-" in condition and not condition.startswith("<") and not condition.startswith(">"):
+        parts = condition.split("-")
+        return ("range", float(parts[0].strip()), float(parts[1].strip()))
+    elif condition.startswith("< ") or condition.startswith("<"):
+        return ("lt", float(condition.lstrip("< ")), None)
+    elif condition.startswith("> ") or condition.startswith(">"):
+        return ("gt", float(condition.lstrip("> ")), None)
+    else:
+        return ("unknown", 0, None)
+
+
+def _check_condition(op: str, v1: float, v2: float | None, actual: float) -> bool:
+    """Check if actual value matches the condition."""
+    if op == "lt":
+        return actual < v1
+    elif op == "gt":
+        return actual > v1
+    elif op == "range":
+        return v1 <= actual <= v2
+    return False
+
+
+@mcp.resource("cross-examine://rightsizing-rules")
+def rightsizing_rules_resource() -> str:
+    """VM rightsizing rules: utilization thresholds and recommendations for each VM family."""
+    return _load_resource_file("analytics/vm_rightsizing_rules.json")
+
+
+@mcp.tool()
+def evaluate_vm_rightsizing(
+    vm_metrics_json: str = Field(
+        description=(
+            "JSON array of VM utilization data. Each entry: "
+            '{"resource_name": "vm-prod-01", "series": "D-Series", '
+            '"metric_name": "Percent CPU", "metric_value": 12.5, '
+            '"monthly_cost": 450.00}. '
+            "series should match Azure VM family naming. "
+            "metric_name: 'Percent CPU', 'Memory %', 'Max Memory', 'Disk IOPS'. "
+            "metric_value: the utilization value (0-100 for percentages)."
+        )
+    ),
+    method: str = Field(
+        default="p95_30day",
+        description="Which rule set to apply: 'point_in_time' (current snapshot) or 'p95_30day' (30-day P95, safer for bursty workloads)."
+    ),
+) -> str:
+    """Evaluate VMs against proprietary rightsizing rules based on utilization metrics.
+
+    Takes VM utilization data (CPU%, Memory%, IOPS) and returns actionable
+    recommendations: delete idle VMs, downsize oversized ones, cross-family
+    moves (e.g., F-Series with low CPU → D-Series), and upsize warnings.
+
+    Two methods available:
+    - point_in_time: Current utilization snapshot. Fast but may miss bursty workloads.
+    - p95_30day: 95th percentile over 30 days. Safer — avoids deleting machines
+      that run heavy jobs periodically.
+
+    Use after querying azure_utilization table for metric data.
+    """
+    data = _parse_data(vm_metrics_json)
+    if not data:
+        return json.dumps({"error": "Invalid input. Provide a JSON array of VM metric data."})
+
+    rules_data = _load_rightsizing_rules()
+    rule_set = rules_data.get("rules", {}).get(method, [])
+    families = rules_data.get("families", {})
+    strategies = rules_data.get("additional_strategies", [])
+
+    if not rule_set:
+        return json.dumps({"error": f"Unknown method '{method}'. Use 'point_in_time' or 'p95_30day'."})
+
+    results = []
+    total_potential_savings = 0
+
+    # Metric name aliases: BQ data may use different names than our rules
+    _METRIC_ALIASES = {
+        "available memory percentage": ("memory %", True),  # (canonical_name, invert_value)
+        "percentage cpu": ("Percent CPU", False),  # BQ uses 'Percentage CPU', rules use 'Percent CPU'
+    }
+
+    for vm in data:
+        resource = vm.get("resource_name", "unknown")
+        series = vm.get("series", "")
+        metric_name = vm.get("metric_name", "")
+        metric_value = float(vm.get("metric_value", 0))
+        monthly_cost = float(vm.get("monthly_cost", 0))
+
+        # Auto-convert known metric aliases (e.g. Available Memory % → Memory %)
+        alias = _METRIC_ALIASES.get(metric_name.lower())
+        if alias:
+            metric_name, invert = alias
+            if invert:
+                metric_value = 100.0 - metric_value
+
+        family = _detect_family(series)
+
+        # Find all matching rules for this VM
+        matching_rules = []
+        for rule in rule_set:
+            rule_family = rule.get("family", "")
+            rule_metric = rule.get("metric", "").lower()
+
+            # Check family match
+            if rule_family != family:
+                continue
+
+            # Check metric match
+            if rule_metric not in metric_name.lower():
+                continue
+
+            # Check condition
+            cond = rule.get("condition", "")
+            if cond in ("high_latency_spikes",):
+                continue  # Can't evaluate qualitative conditions from numeric data
+
+            op, v1, v2 = _parse_condition(cond)
+            if op == "unknown":
+                continue
+
+            if _check_condition(op, v1, v2, metric_value):
+                # Skip if we already have a higher-severity match for the same metric
+                # (avoids double-counting overlapping ranges like <2 and <20)
+                if any(m["_rule_metric"] == rule_metric for m in matching_rules):
+                    continue
+
+                savings_pct = rule.get("estimated_savings_pct", 0)
+                est_savings = round(monthly_cost * savings_pct / 100, 2) if savings_pct > 0 else 0
+                total_potential_savings += est_savings
+
+                match = {
+                    "rule_severity": rule["severity"],
+                    "action": rule["action"],
+                    "recommendation": rule["recommendation"],
+                }
+                if rule.get("target_family"):
+                    target_fam = families.get(rule["target_family"], {})
+                    match["target_family"] = rule["target_family"]
+                    match["target_azure_series"] = target_fam.get("series", [])[:3]
+                    match["target_aws_equivalent"] = target_fam.get("aws_equivalent", "")
+                    match["target_gcp_equivalent"] = target_fam.get("gcp_equivalent", "")
+                if savings_pct:
+                    match["estimated_savings_pct"] = savings_pct
+                    match["estimated_monthly_savings"] = est_savings
+                match["_rule_metric"] = rule_metric  # track for dedup
+
+                matching_rules.append(match)
+
+        if matching_rules:
+            # Sort by severity: critical > high > warning > medium > info
+            severity_order = {"critical": 0, "high": 1, "warning": 2, "medium": 3, "info": 4}
+            matching_rules.sort(key=lambda r: severity_order.get(r["rule_severity"], 5))
+            for m in matching_rules:
+                m.pop("_rule_metric", None)  # remove internal tracking key
+
+            results.append({
+                "resource_name": resource,
+                "series": series,
+                "family": family,
+                "metric_name": metric_name,
+                "metric_value": metric_value,
+                "monthly_cost": monthly_cost,
+                "findings": matching_rules,
+            })
+        else:
+            results.append({
+                "resource_name": resource,
+                "series": series,
+                "family": family,
+                "metric_name": metric_name,
+                "metric_value": metric_value,
+                "monthly_cost": monthly_cost,
+                "findings": [{"rule_severity": "info", "action": "optimized", "recommendation": "No rightsizing issues detected. VM appears well-sized for its workload."}],
+            })
+
+    # Sort results: critical findings first, then by monthly cost
+    severity_priority = {"critical": 0, "high": 1, "warning": 2, "medium": 3, "info": 4}
+    results.sort(key=lambda r: (
+        severity_priority.get(r["findings"][0]["rule_severity"], 5),
+        -r["monthly_cost"],
+    ))
+
+    return json.dumps({
+        "method": method,
+        "method_label": rules_data.get("methods", {}).get(method, {}).get("label", method),
+        "total_vms_evaluated": len(data),
+        "vms_with_findings": sum(1 for r in results if r["findings"][0]["action"] != "optimized"),
+        "total_potential_monthly_savings": round(total_potential_savings, 2),
+        "results": results,
+        "additional_strategies": strategies,
+        "note": (
+            "These are proprietary rightsizing recommendations based on utilization thresholds. "
+            "Always validate with application owners before acting — some VMs may have "
+            "specific performance requirements or periodic batch jobs."
         ),
     }, indent=2)
 
